@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
 import { Plus, Download, ChevronLeft, ChevronRight, Share2, Sparkles, Users } from 'lucide-react';
 import api from '../services/api';
@@ -12,6 +12,7 @@ import {
 } from '../services/sharedCalendarService';
 import { NewCalendarModal, ShareCalendarModal } from '../components/calendar/SharedCalendarModals';
 import { FreeTimePanel } from '../components/calendar/FreeTimePanel';
+import { PageHeader } from '../components/ui/PageHeader';
 
 interface CalendarEvent {
   id: number;
@@ -250,6 +251,17 @@ export const CalendarPage: React.FC = () => {
   }, [calendarId]);
 
   useEffect(() => { loadCalendars(); }, [loadCalendars]);
+
+  // Deep links from the sidebar and dashboard: ?new=1 opens "New shared calendar", ?freeTime=1 opens free time.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('new')) setShowNewCalendar(true);
+    if (searchParams.get('freeTime')) {
+      setShowFreeTime(true);
+      setViewMode(v => (v === 'month' ? (isSmallScreen() ? 'day' : 'week') : v));
+    }
+    if (searchParams.get('new') || searchParams.get('freeTime')) setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
   useEffect(() => { loadData(); }, [loadData]);
 
   // Convert tasks with due dates into calendar-renderable items
@@ -303,12 +315,6 @@ export const CalendarPage: React.FC = () => {
 
   const itemsForDay = (date: Date) =>
     allItems.filter(e => isSameDay(new Date(e.startTime), date));
-
-  const itemsForHour = (date: Date, hour: number) =>
-    allItems.filter(e => {
-      const s = new Date(e.startTime);
-      return isSameDay(s, date) && s.getHours() === hour;
-    });
 
   // True if any free slot covers part of this hour — used to shade the grid.
   const isFreeHour = (date: Date, hour: number) => {
@@ -476,66 +482,178 @@ export const CalendarPage: React.FC = () => {
     </div>
   );
 
-  const renderTimeGrid = (days: Date[]) => (
-    <div ref={timeGridRef} className="flex-1 overflow-auto">
-      <div className={days.length > 1 ? 'min-w-[640px]' : ''}>
-        {/* Day headers */}
-        <div className="grid border-b border-gray-200 sticky top-0 bg-white z-10" style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}>
-          <div className="py-2" />
-          {days.map((d, i) => {
-            const isToday = isSameDay(d, new Date());
-            return (
-              <div key={i} className="py-2 text-center">
-                <div className="text-xs text-gray-500 font-medium">{DAYS[d.getDay()]}</div>
-                <div className={`text-lg font-bold mx-auto w-9 h-9 flex items-center justify-center rounded-full ${isToday ? 'bg-flow-purple text-white' : 'text-gray-800'}`}>
-                  {d.getDate()}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {/* Hour rows */}
-        {HOURS.map(hour => (
-          <div key={hour} className="grid" style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)`, minHeight: `${HOUR_HEIGHT}px` }}>
-            <div className="text-right pr-2 pt-1 text-xs text-gray-400 border-r border-gray-100">
-              {hour === 0 ? '' : `${hour % 12 || 12}${hour < 12 ? 'a' : 'p'}`}
-            </div>
+  // Position a day's items by their real start/end, putting overlapping items side by side.
+  const layoutDay = (date: Date) => {
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const items = itemsForDay(date)
+      .map(item => {
+        const start = Math.max(0, (new Date(item.startTime).getTime() - dayStart.getTime()) / 60_000);
+        const rawEnd = (new Date(item.endTime).getTime() - dayStart.getTime()) / 60_000;
+        // Deadlines have no length; give every block enough height to read.
+        const end = Math.min(24 * 60, Math.max(rawEnd, start + 30));
+        return { item, start, end, col: 0, cols: 1 };
+      })
+      .sort((a, b) => a.start - b.start || b.end - a.end);
+
+    let cluster: typeof items = [];
+    let clusterEnd = -1;
+    const colEnds: number[] = [];
+    const closeCluster = () => {
+      const n = Math.max(1, ...cluster.map(c => c.col + 1));
+      cluster.forEach(c => { c.cols = n; });
+      cluster = [];
+      colEnds.length = 0;
+    };
+    items.forEach(it => {
+      if (it.start >= clusterEnd) closeCluster();
+      let col = colEnds.findIndex(e => e <= it.start);
+      if (col === -1) col = colEnds.length;
+      colEnds[col] = it.end;
+      it.col = col;
+      cluster.push(it);
+      clusterEnd = Math.max(clusterEnd, it.end);
+    });
+    closeCluster();
+    return items;
+  };
+
+  const minutesLabel = (m: number) => {
+    const h = Math.floor(m / 60) % 24, mm = Math.round(m % 60);
+    return `${h % 12 || 12}${mm ? ':' + String(mm).padStart(2, '0') : ''}${h < 12 ? 'am' : 'pm'}`;
+  };
+
+  const renderTimeGrid = (days: Date[]) => {
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return (
+      <div ref={timeGridRef} className="flex-1 min-h-0 overflow-auto">
+        <div className={days.length > 1 ? 'min-w-[640px]' : ''}>
+          {/* Day headers */}
+          <div className="grid border-b border-gray-200 sticky top-0 bg-white z-20" style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}>
+            <div className="py-2" />
             {days.map((d, i) => {
-              const hourItems = itemsForHour(d, hour);
-              const free = isFreeHour(d, hour);
+              const isToday = isSameDay(d, now);
               return (
-                <div
-                  key={i}
-                  onClick={() => {
-                    const dt = new Date(d);
-                    dt.setHours(hour, 0, 0, 0);
-                    openNew(dt);
-                  }}
-                  className={`border-r border-b border-gray-100 p-0.5 relative ${readOnly ? '' : 'cursor-pointer hover:bg-gray-50'} ${free ? 'bg-green-50' : ''}`}
-                >
-                  {free && <span className="absolute inset-y-0 left-0 w-1 bg-green-300" aria-hidden />}
-                  {hourItems.map((item, j) => <EventPill key={j} item={item} />)}
+                <div key={i} className="py-2 text-center">
+                  <div className="text-xs text-gray-500 font-medium">{DAYS[d.getDay()]}</div>
+                  <div className={`text-lg font-bold mx-auto w-9 h-9 flex items-center justify-center rounded-full ${isToday ? 'bg-flow-purple text-white' : 'text-gray-800'}`}>
+                    {d.getDate()}
+                  </div>
                 </div>
               );
             })}
           </div>
-        ))}
+
+          <div className="grid" style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}>
+            {/* Hour labels */}
+            <div className="border-r border-gray-100">
+              {HOURS.map(hour => (
+                <div key={hour} className="text-right pr-2 pt-1 text-xs text-gray-400" style={{ height: HOUR_HEIGHT }}>
+                  {hour === 0 ? '' : `${hour % 12 || 12}${hour < 12 ? 'a' : 'p'}`}
+                </div>
+              ))}
+            </div>
+
+            {days.map((d, i) => (
+              <div key={i} className="relative border-r border-gray-100" style={{ height: 24 * HOUR_HEIGHT }}>
+                {/* Hour cells: click to add, shaded when free */}
+                {HOURS.map(hour => {
+                  const free = isFreeHour(d, hour);
+                  return (
+                    <div
+                      key={hour}
+                      onClick={() => {
+                        const dt = new Date(d);
+                        dt.setHours(hour, 0, 0, 0);
+                        openNew(dt);
+                      }}
+                      className={`relative border-b border-gray-100 ${readOnly ? '' : 'cursor-pointer hover:bg-gray-50'} ${free ? 'bg-green-50' : ''}`}
+                      style={{ height: HOUR_HEIGHT }}
+                    >
+                      {free && <span className="absolute inset-y-0 left-0 w-1 bg-green-300" aria-hidden />}
+                    </div>
+                  );
+                })}
+
+                {/* Current time */}
+                {isSameDay(d, now) && (
+                  <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: (nowMinutes / 60) * HOUR_HEIGHT }} aria-hidden>
+                    <div className="h-0.5 bg-red-500" />
+                    <div className="absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+                  </div>
+                )}
+
+                {/* Events */}
+                {layoutDay(d).map(({ item, start, end, col, cols }, j) => {
+                  const height = ((end - start) / 60) * HOUR_HEIGHT;
+                  return (
+                    <button
+                      key={`${item.id}-${j}`}
+                      type="button"
+                      onClick={e => { e.stopPropagation(); item.id > 0 && openEdit(item); }}
+                      title={item.createdByName ? `${item.title} — added by ${item.createdByName}` : item.title}
+                      className={`absolute z-[5] rounded-md px-1.5 py-0.5 text-left text-white text-[11px] sm:text-xs leading-tight overflow-hidden shadow-sm ring-1 ring-white hover:brightness-95 ${item.completed ? 'opacity-60 line-through' : ''}`}
+                      style={{
+                        top: (start / 60) * HOUR_HEIGHT + 1,
+                        height: Math.max(height - 2, 18),
+                        left: `calc(${(col / cols) * 100}% + 2px)`,
+                        width: `calc(${100 / cols}% - 4px)`,
+                        backgroundColor: item.color,
+                      }}
+                    >
+                      <div className="font-semibold truncate">{item.title}</div>
+                      {height >= 36 && (
+                        <div className="opacity-90 truncate">
+                          {minutesLabel(start)}{end - start > 30 || new Date(item.endTime) > new Date(item.startTime) ? `–${minutesLabel(end)}` : ''}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const chipClass = (active: boolean) =>
     `flex items-center gap-2 shrink-0 px-3 py-2 rounded-full text-sm border transition-colors ${
-      active ? 'bg-white border-flow-purple text-gray-900 shadow-sm font-medium' : 'bg-white/60 border-transparent text-gray-600 hover:bg-white'
+      active ? 'bg-flow-purple border-flow-purple text-white shadow-sm font-medium' : 'bg-white/70 border-transparent text-gray-700 hover:bg-white'
     }`;
 
   return (
     <Layout>
-      <div className="flex flex-col h-full max-w-7xl mx-auto py-1 sm:py-2">
+      <div className="flex flex-col lg:h-full max-w-7xl mx-auto [&>*]:shrink-0">
+        <PageHeader
+          title={shared ? (detail?.name ?? 'Shared calendar') : 'Calendar'}
+          subtitle={shared ? 'Shared calendar · everyone here can see these items' : 'Your events, reminders and task due dates'}
+          actions={
+            <>
+              {shared ? (
+                <button onClick={() => setShowShare(true)} className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-gray-200 text-gray-800 rounded-xl hover:bg-gray-50 text-sm font-medium">
+                  <Share2 className="h-4 w-4" /> Share
+                </button>
+              ) : (
+                <button onClick={handleExport} className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-gray-200 text-gray-800 rounded-xl hover:bg-gray-50 text-sm font-medium" title="Download an .ics file you can open in Apple Calendar">
+                  <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export to Apple Calendar</span><span className="sm:hidden">Export</span>
+                </button>
+              )}
+              {!readOnly && (
+                <button onClick={() => openNew()} className="hidden md:flex items-center gap-1.5 px-4 py-2.5 bg-flow-purple text-white rounded-xl hover:bg-primary-500 text-sm font-medium shadow-sm">
+                  <Plus className="h-4 w-4" /> Add
+                </button>
+              )}
+            </>
+          }
+        />
+
         {/* Calendar switcher */}
-        <nav aria-label="Calendars" className="-mx-3 sm:mx-0 px-3 sm:px-0 mb-3 flex gap-2 overflow-x-auto pb-1">
+        <nav aria-label="Calendars" className="-mx-3 sm:mx-0 px-3 sm:px-0 mb-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           <button onClick={() => routerNavigate('/calendar')} className={chipClass(!shared)} aria-current={!shared ? 'page' : undefined}>
-            <span className="h-2.5 w-2.5 rounded-full bg-flow-purple" /> My calendar
+            <span className={`h-2.5 w-2.5 rounded-full ${!shared ? 'bg-white' : 'bg-flow-purple'}`} /> My calendar
           </button>
           {calendars.map(c => (
             <button
@@ -544,9 +662,9 @@ export const CalendarPage: React.FC = () => {
               className={chipClass(c.id === calendarId)}
               aria-current={c.id === calendarId ? 'page' : undefined}
             >
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+              <span className="h-2.5 w-2.5 rounded-full ring-2 ring-white" style={{ backgroundColor: c.color }} />
               {c.name}
-              <span className="flex items-center gap-0.5 text-xs text-gray-400"><Users className="h-3 w-3" />{c.memberCount}</span>
+              <span className="flex items-center gap-0.5 text-xs opacity-70"><Users className="h-3 w-3" />{c.memberCount}</span>
             </button>
           ))}
           <button onClick={() => setShowNewCalendar(true)} className="flex items-center gap-1 shrink-0 px-3 py-2 rounded-full text-sm text-flow-purple border border-dashed border-flow-purple hover:bg-white">
@@ -555,23 +673,23 @@ export const CalendarPage: React.FC = () => {
         </nav>
 
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 mb-3">
-          <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 bg-flow-lavender rounded-2xl p-1.5 sm:p-2">
+          <div className="flex items-center gap-0.5 sm:gap-1">
             <button onClick={() => navigate(-1)} aria-label="Previous" className="p-2 hover:bg-white/70 rounded-lg"><ChevronLeft className="h-5 w-5" /></button>
-            <h2 className="text-base sm:text-lg font-bold font-heading text-gray-900 min-w-[150px] sm:min-w-[200px] text-center">{headerLabel()}</h2>
             <button onClick={() => navigate(1)} aria-label="Next" className="p-2 hover:bg-white/70 rounded-lg"><ChevronRight className="h-5 w-5" /></button>
-            <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 text-sm bg-flow-lavender text-gray-700 rounded-lg hover:bg-purple-200">Today</button>
+            <h2 className="text-base sm:text-lg font-semibold font-sans text-gray-900 px-1 sm:px-2 whitespace-nowrap" aria-live="polite">{headerLabel()}</h2>
+            <button onClick={() => setCurrentDate(new Date())} className="ml-1 px-3 py-1.5 text-sm bg-white text-gray-800 rounded-lg hover:bg-flow-yellow">Today</button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             {/* View toggle */}
-            <div className="flex bg-gray-100 rounded-lg p-1" role="group" aria-label="View">
+            <div className="flex bg-white/70 rounded-lg p-1" role="group" aria-label="View">
               {(['month','week','day'] as ViewMode[]).map(v => (
                 <button
                   key={v}
                   onClick={() => setViewMode(v)}
                   aria-pressed={viewMode === v}
-                  className={`px-3 py-1 text-sm rounded-md capitalize transition-all ${viewMode === v ? 'bg-white shadow text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`px-2.5 sm:px-3 py-1 text-sm rounded-md capitalize transition-all ${viewMode === v ? 'bg-flow-purple shadow text-white font-medium' : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   {v}
                 </button>
@@ -580,24 +698,10 @@ export const CalendarPage: React.FC = () => {
             <button
               onClick={toggleFreeTime}
               aria-pressed={showFreeTime}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showFreeTime ? 'bg-green-600 text-white' : 'bg-flow-green text-gray-800 hover:bg-green-200'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${showFreeTime ? 'bg-green-600 text-white' : 'bg-flow-green text-gray-800 hover:bg-green-200'}`}
             >
               <Sparkles className="h-4 w-4" /> Free time
             </button>
-            {shared ? (
-              <button onClick={() => setShowShare(true)} className="flex items-center gap-1.5 px-3 py-2 bg-flow-lavender text-gray-700 rounded-lg hover:bg-purple-200 text-sm">
-                <Share2 className="h-4 w-4" /> Share
-              </button>
-            ) : (
-              <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-2 bg-flow-lavender text-gray-700 rounded-lg hover:bg-purple-200 text-sm">
-                <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export to Apple Calendar</span><span className="sm:hidden">Export</span>
-              </button>
-            )}
-            {!readOnly && (
-              <button onClick={() => openNew()} className="flex items-center gap-1.5 px-3 py-2 bg-flow-purple text-white rounded-lg hover:bg-primary-500 text-sm">
-                <Plus className="h-4 w-4" /> Add
-              </button>
-            )}
           </div>
         </div>
 
@@ -629,8 +733,8 @@ export const CalendarPage: React.FC = () => {
         )}
 
         {/* Calendar body + free-time panel */}
-        <div className="flex-1 min-h-0 flex flex-col-reverse lg:flex-row gap-3">
-          <div className="flex-1 min-h-[420px] bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 !shrink flex flex-col-reverse lg:flex-row gap-3">
+          <div className="shrink-0 h-[68dvh] min-h-[420px] lg:shrink lg:flex-1 lg:h-auto bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col">
             {viewMode === 'month' && renderMonth()}
             {viewMode === 'week' && renderTimeGrid(getWeekDays(currentDate))}
             {viewMode === 'day' && renderTimeGrid([currentDate])}
@@ -679,6 +783,16 @@ export const CalendarPage: React.FC = () => {
           onChanged={() => { loadCalendars(); loadData(); }}
           onGone={() => { setShowShare(false); loadCalendars(); routerNavigate('/calendar'); }}
         />
+      )}
+      {/* Phones: floating Add button above the tab bar */}
+      {!readOnly && (
+        <button
+          onClick={() => openNew()}
+          aria-label="Add to calendar"
+          className="md:hidden fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 h-14 w-14 rounded-full bg-flow-purple text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
       )}
     </Layout>
   );

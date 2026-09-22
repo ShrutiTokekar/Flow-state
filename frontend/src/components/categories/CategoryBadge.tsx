@@ -1,6 +1,6 @@
 import React from 'react';
 import { Category } from '../../types';
-import * as Icons from 'lucide-react';
+import { getCategoryIcon } from '../../utils/categoryIcons';
 
 interface CategoryBadgeProps {
   category: Category;
@@ -13,19 +13,7 @@ export const CategoryBadge: React.FC<CategoryBadgeProps> = ({
   size = 'md',
   showIcon = true 
 }) => {
-  // Get icon component dynamically
-  const getIcon = (iconName: string) => {
-    // Convert icon name to PascalCase (e.g., 'shopping-cart' -> 'ShoppingCart')
-    const iconKey = iconName
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join('');
-    
-    const IconComponent = (Icons as any)[iconKey] || Icons.Folder;
-    return IconComponent;
-  };
-
-  const Icon = getIcon(category.icon);
+  const Icon = getCategoryIcon(category.icon);
 
   const sizeClasses = {
     sm: 'px-2 py-1 text-xs',

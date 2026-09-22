@@ -83,6 +83,14 @@ body {
   background: #7281c5;
 }
 
+/* Hide the scrollbar on horizontally scrolling chip rows (still scrollable) */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;
