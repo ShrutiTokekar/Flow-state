@@ -11,6 +11,8 @@ import { Profile } from './pages/Profile';
 import { OAuthCallback } from './pages/OAuthCallback';
 import Calendar from "./pages/CalendarPage";
 import { Trackers } from "./pages/Trackers";
+import { Landing } from "./pages/Landing";
+import { JoinCalendar } from "./pages/JoinCalendar";
 
 // Create a query client for React Query
 const queryClient = new QueryClient({
@@ -80,6 +82,18 @@ function App() {
           />
 
           <Route
+            path="/calendars/:calendarId"
+            element={
+              <ProtectedRoute>
+                <Calendar />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Invite links — public so logged-out visitors see what they're joining */}
+          <Route path="/join/:token" element={<JoinCalendar />} />
+
+          <Route
             path="/trackers"
             element={
               <ProtectedRoute>
@@ -98,9 +112,10 @@ function App() {
           />
 
           {/* Default redirect */}
-          <Route 
-            path="/" 
-            element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} 
+          {/* Marketing landing page for visitors; logged-in users go straight to the app */}
+          <Route
+            path="/"
+            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Landing />}
           />
 
           {/* 404 Page */}

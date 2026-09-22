@@ -1,5 +1,6 @@
 package com.taskmanager.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -23,9 +24,22 @@ public class CalendarEvent {
     @Column(name = "end_time", nullable = false)
     private LocalDateTime endTime;
 
+    // Owner for personal events; creator for events on a shared calendar.
+    // Never serialized: it would expose the user's password hash.
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    // Null for personal events; set when the event belongs to a shared calendar.
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "calendar_id")
+    private SharedCalendar calendar;
+
+    // Lets shared-calendar items of type "task" be checked off by any editor.
+    @Column(name = "completed")
+    private Boolean completed = false;
 
     @Column(name = "task_id")
     private Long taskId;
@@ -82,6 +96,16 @@ public class CalendarEvent {
 
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+
+    public SharedCalendar getCalendar() { return calendar; }
+    public void setCalendar(SharedCalendar calendar) { this.calendar = calendar; }
+
+    public Long getCalendarId() { return calendar != null ? calendar.getId() : null; }
+
+    public String getCreatedByName() { return user != null ? user.getName() : null; }
+
+    public Boolean getCompleted() { return completed; }
+    public void setCompleted(Boolean completed) { this.completed = completed; }
 
     public Long getTaskId() { return taskId; }
     public void setTaskId(Long taskId) { this.taskId = taskId; }

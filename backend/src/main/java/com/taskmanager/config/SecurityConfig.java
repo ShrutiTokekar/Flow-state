@@ -40,6 +40,8 @@ public class SecurityConfig {
             .cors(cors -> cors.configure(http))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/login/**", "/oauth2/**").permitAll()
+                // Invite preview only; joining still requires login
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/calendars/invite/*").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
