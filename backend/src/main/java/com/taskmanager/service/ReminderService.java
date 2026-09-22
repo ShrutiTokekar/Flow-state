@@ -1,180 +1,116 @@
 package com.taskmanager.service;
 
-import com.taskmanager.model.Notification;
 import com.taskmanager.model.Reminder;
 import com.taskmanager.model.Task;
 import com.taskmanager.model.User;
 import com.taskmanager.repository.ReminderRepository;
+import com.taskmanager.service.EmailService.TaskEmailKind;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 public class ReminderService {
-    
+
     private static final Logger log = LoggerFactory.getLogger(ReminderService.class);
-    
+
     private final ReminderRepository reminderRepository;
     private final NotificationService notificationService;
-    private final EmailService emailService;
-    
-    public ReminderService(ReminderRepository reminderRepository,
-                          NotificationService notificationService,
-                          EmailService emailService) {
+
+    public ReminderService(ReminderRepository reminderRepository, NotificationService notificationService) {
         this.reminderRepository = reminderRepository;
         this.notificationService = notificationService;
-        this.emailService = emailService;
     }
-    
+
     /**
-     * Create a reminder for a task
+     * Sets the task's reminder, replacing any unsent one (the app offers one reminder per task).
+     * If the reminder time has already passed, it's sent right away.
      */
     @Transactional
-    public Reminder createReminder(Task task, User user, int minutesBefore, Reminder.ReminderType type) {
+    public Reminder setReminder(Task task, User user, int minutesBefore, Reminder.ReminderType type) {
         if (task.getDueDate() == null) {
-            throw new RuntimeException("Cannot create reminder for task without due date");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Add a due date before setting a reminder");
         }
-        
-        LocalDateTime reminderTime = task.getDueDate().minusMinutes(minutesBefore);
-        
+        if (minutesBefore < 0 || minutesBefore > 60 * 24 * 30) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reminder must be between 0 minutes and 30 days before");
+        }
+        reminderRepository.deleteAll(reminderRepository.findByTaskAndIsSentFalse(task));
+
         Reminder reminder = new Reminder();
         reminder.setTask(task);
         reminder.setUser(user);
-        reminder.setReminderTime(reminderTime);
+        reminder.setMinutesBefore(minutesBefore);
+        reminder.setReminderTime(task.getDueDate().minusMinutes(minutesBefore));
         reminder.setReminderType(type);
         reminder.setIsSent(false);
-        
-        return reminderRepository.save(reminder);
+        reminder = reminderRepository.save(reminder);
+
+        if (!reminder.getReminderTime().isAfter(LocalDateTime.now())) {
+            send(reminder);
+        }
+        return reminder;
     }
-    
-    /**
-     * Get all reminders for a task
-     */
+
+    /** Keep unsent reminders in step when a task's due date changes (or clear them if it's removed). */
+    @Transactional
+    public void rescheduleForTask(Task task) {
+        List<Reminder> pending = reminderRepository.findByTaskAndIsSentFalse(task);
+        if (task.getDueDate() == null) {
+            reminderRepository.deleteAll(pending);
+            return;
+        }
+        for (Reminder r : pending) {
+            int minutes = r.getMinutesBefore() != null ? r.getMinutesBefore() : 0;
+            r.setReminderTime(task.getDueDate().minusMinutes(minutes));
+        }
+        reminderRepository.saveAll(pending);
+    }
+
     public List<Reminder> getRemindersForTask(Task task) {
         return reminderRepository.findByTaskOrderByReminderTimeAsc(task);
     }
-    
-    /**
-     * Get all pending reminders for a user
-     */
-    public List<Reminder> getPendingRemindersForUser(User user) {
-        return reminderRepository.findByUserAndIsSentFalseOrderByReminderTimeAsc(user);
-    }
-    
-    /**
-     * Delete reminder
-     */
-    @Transactional
-    public void deleteReminder(Long reminderId) {
-        reminderRepository.deleteById(reminderId);
-    }
-    
-    /**
-     * Delete all reminders for a task
-     */
+
     @Transactional
     public void deleteRemindersForTask(Long taskId) {
         reminderRepository.deleteByTaskId(taskId);
     }
-    
-    /**
-     * Scheduled job to check and send reminders every 5 minutes
-     */
-    @Scheduled(fixedRate = 300000) // 5 minutes
+
+    /** Every minute: send reminders whose time has come. */
+    @Scheduled(fixedRate = 60_000)
     @Transactional
     public void checkAndSendReminders() {
-        log.info("Checking for pending reminders...");
-        
-        List<Reminder> pendingReminders = reminderRepository.findPendingReminders(LocalDateTime.now());
-        
-        for (Reminder reminder : pendingReminders) {
+        List<Reminder> due = reminderRepository.findPendingReminders(LocalDateTime.now());
+        for (Reminder reminder : due) {
             try {
-                sendReminder(reminder);
-                reminder.setIsSent(true);
-                reminderRepository.save(reminder);
-                log.info("Sent reminder {} for task: {}", reminder.getId(), reminder.getTask().getTitle());
+                send(reminder);
             } catch (Exception e) {
                 log.error("Failed to send reminder {}: {}", reminder.getId(), e.getMessage(), e);
             }
         }
-        
-        log.info("Processed {} reminders", pendingReminders.size());
+        if (!due.isEmpty()) log.info("Processed {} reminders", due.size());
     }
-    
-    /**
-     * Send a reminder based on its type
-     */
-    private void sendReminder(Reminder reminder) {
+
+    private void send(Reminder reminder) {
         Task task = reminder.getTask();
-        User user = reminder.getUser();
-        
-        String message = String.format("Reminder: '%s' is due soon!", task.getTitle());
-        
-        switch (reminder.getReminderType()) {
-            case EMAIL:
-                sendEmailReminder(user, task);
-                break;
-            case PUSH:
-                sendPushNotification(user, task);
-                break;
-            case IN_APP:
-                notificationService.createNotification(
-                    user,
-                    message,
-                    Notification.NotificationType.REMINDER,
-                    task
-                );
-                break;
-        }
-    }
-    
-    /**
-     * Send email reminder
-     */
-    private void sendEmailReminder(User user, Task task) {
-        String subject = "Task Reminder: " + task.getTitle();
-        String body = String.format(
-            "Hello %s,\n\n" +
-            "This is a reminder that your task '%s' is due on %s.\n\n" +
-            "Description: %s\n\n" +
-            "Priority: %s\n\n" +
-            "Don't forget to complete it!\n\n" +
-            "Best regards,\n" +
-            "Flow State Team",
-            user.getName(),
-            task.getTitle(),
-            task.getDueDate(),
-            task.getDescription() != null ? task.getDescription() : "N/A",
-            task.getPriority()
-        );
-        
-        try {
-            emailService.sendSimpleEmail(user.getEmail(), subject, body);
-            log.info("Email reminder sent to: {}", user.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send email reminder: {}", e.getMessage(), e);
-        }
-    }
-    
-    /**
-     * Send push notification (placeholder for future implementation)
-     */
-    private void sendPushNotification(User user, Task task) {
-        // TODO: Implement push notification using Firebase Cloud Messaging or similar
-        log.info("Push notification would be sent to user: {} for task: {}", user.getId(), task.getTitle());
-        
-        // For now, create in-app notification
-        String message = String.format("Reminder: '%s' is due soon!", task.getTitle());
-        notificationService.createNotification(
-            user,
-            message,
-            Notification.NotificationType.REMINDER,
-            task
-        );
+        reminder.setIsSent(true);
+        reminderRepository.save(reminder);
+        if ("DONE".equals(task.getStatus())) return; // no point reminding about finished work
+
+        boolean email = switch (reminder.getReminderType()) {
+            case EMAIL, BOTH -> true;
+            case IN_APP, PUSH -> false; // native push isn't set up yet, so PUSH shows in the app
+        };
+        // The user explicitly asked for this reminder by email, so send it even if general
+        // email notifications are off.
+        notificationService.taskAlert(reminder.getUser(), task, TaskEmailKind.REMINDER,
+            "reminder:" + reminder.getId(), email, true);
+        log.info("Sent reminder {} for task {}", reminder.getId(), task.getId());
     }
 }

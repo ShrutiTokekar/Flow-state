@@ -3,6 +3,7 @@ package com.taskmanager.config;
 import com.taskmanager.config.JwtTokenProvider;
 import com.taskmanager.model.User;
 import com.taskmanager.repository.UserRepository;
+import com.taskmanager.service.EmailService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,14 +27,17 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
+    private final EmailService emailService;
     
     @Value("${frontend.url:https://flow-state-bay.vercel.app}")
     private String frontendUrl;
 
     @Autowired
-    public OAuth2LoginSuccessHandler(JwtTokenProvider jwtTokenProvider, UserRepository userRepository) {
+    public OAuth2LoginSuccessHandler(JwtTokenProvider jwtTokenProvider, UserRepository userRepository,
+                                     EmailService emailService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
     @Override
@@ -53,18 +57,30 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
             return;
         }
         
-        // Find or create user
+        // Find or create user. All app emails go to this Google address.
+        boolean[] isNew = {false};
         User user = userRepository.findByEmail(email).orElseGet(() -> {
+            isNew[0] = true;
             User newUser = new User();
             newUser.setEmail(email);
             newUser.setName(name != null ? name : email.split("@")[0]);
             newUser.setPassword(""); // OAuth users don't have passwords
             newUser.setRole("USER");
             newUser.setEmailNotifications(true);
+            newUser.setEmailVerified(true); // Google has already verified this address
             newUser.setCreatedAt(LocalDateTime.now());
             return userRepository.save(newUser);
         });
         
+        if (isNew[0]) {
+            emailService.sendWelcomeEmail(user.getEmail(), user.getName(), null);
+        } else if (Boolean.FALSE.equals(user.getEmailVerified())) {
+            // Signed up with a password earlier and never confirmed; signing in with Google proves the address.
+            user.setEmailVerified(true);
+            user.setVerificationTokenHash(null);
+            user = userRepository.save(user);
+        }
+
         // Generate JWT token
         String token = jwtTokenProvider.generateToken(email);
         

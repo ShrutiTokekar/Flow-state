@@ -25,7 +25,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/calendars")
@@ -39,6 +38,8 @@ public class SharedCalendarController {
             @Pattern(regexp = HEX_COLOR, message = "Color must look like #8894d1") String color) {}
 
     public record RoleRequest(@NotNull CalendarMember.Role role) {}
+
+    public record InviteRequest(@NotNull List<String> emails) {}
 
     public record EventRequest(
             @NotBlank @Size(max = 255) String title,
@@ -120,6 +121,18 @@ public class SharedCalendarController {
     @PostMapping("/invite/{token}/join")
     public CalendarSummary join(@PathVariable String token, Authentication auth) {
         return calendarService.join(me(auth), token);
+    }
+
+    /** Invite people by email. Body: {"emails": ["a@x.com", "b@y.com"]} */
+    @PostMapping("/{id}/invites")
+    public InviteResult invite(@PathVariable Long id, @Valid @RequestBody InviteRequest body, Authentication auth) {
+        return calendarService.inviteByEmail(me(auth), id, body.emails());
+    }
+
+    @DeleteMapping("/{id}/invites/{inviteId}")
+    public ResponseEntity<Void> cancelInvite(@PathVariable Long id, @PathVariable Long inviteId, Authentication auth) {
+        calendarService.cancelInvite(me(auth), id, inviteId);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/members/{userId}")
@@ -209,13 +222,6 @@ public class SharedCalendarController {
         if (end.isBefore(start)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End time must be after start time");
         }
-    }
-
-    /** Return {"message": ...} so the app can show why a request was refused. */
-    @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, String>> handleStatus(ResponseStatusException e) {
-        String message = e.getReason() != null ? e.getReason() : "Request failed";
-        return ResponseEntity.status(e.getStatusCode()).body(Map.of("message", message));
     }
 
     private User me(Authentication auth) {

@@ -6,6 +6,7 @@ export interface User {
   role: string;
   avatarUrl?: string;
   emailNotifications?: boolean;
+  emailVerified?: boolean; // false until they click the link in the confirmation email
 }
 
 export interface LoginRequest {

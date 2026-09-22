@@ -55,8 +55,10 @@ public class NotificationController {
     }
 
     @PutMapping("/{id}/read")
-    public ResponseEntity<Map<String, Object>> markAsRead(@PathVariable Long id) {
-        Notification notification = notificationService.markAsRead(id);
+    public ResponseEntity<Map<String, Object>> markAsRead(@PathVariable Long id, Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        Notification notification = notificationService.markAsRead(user, id);
         return ResponseEntity.ok(toMap(notification));
     }
 
@@ -69,8 +71,10 @@ public class NotificationController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteNotification(@PathVariable Long id) {
-        notificationService.deleteNotification(id);
+    public ResponseEntity<Void> deleteNotification(@PathVariable Long id, Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+            .orElseThrow(() -> new RuntimeException("User not found"));
+        notificationService.deleteNotification(user, id);
         return ResponseEntity.noContent().build();
     }
 
@@ -83,6 +87,7 @@ public class NotificationController {
         map.put("message", n.getMessage());
         map.put("type", n.getType() != null ? n.getType().name() : "INFO");
         map.put("isRead", n.getIsRead());
+        map.put("link", n.getLink());
         map.put("createdAt", n.getCreatedAt() != null ? n.getCreatedAt().toString() : LocalDateTime.now().toString());
 
         if (n.getTask() != null) {

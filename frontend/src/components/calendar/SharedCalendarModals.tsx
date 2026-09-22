@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Copy, RefreshCw, Trash2, LogOut, Users, X } from 'lucide-react';
+import { Check, Copy, RefreshCw, Trash2, LogOut, Users, X, Mail, Send } from 'lucide-react';
 import {
   sharedCalendarService,
   SharedCalendarDetail,
@@ -130,6 +130,9 @@ export const ShareCalendarModal: React.FC<{
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [inviteNote, setInviteNote] = useState('');
 
   const load = () =>
     sharedCalendarService.get(calendarId).then(setCal).catch(e => setError(errorMessage(e)));
@@ -152,6 +155,33 @@ export const ShareCalendarModal: React.FC<{
       }
     } catch (e) {
       setError(errorMessage(e));
+    }
+  };
+
+  // Accepts commas, spaces, semicolons or new lines between addresses.
+  const parseEmails = (text: string) => text.split(/[\s,;]+/).map(e => e.trim()).filter(Boolean);
+
+  const sendInvites = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const emails = parseEmails(emailInput);
+    if (!emails.length) return;
+    setSending(true);
+    setError('');
+    setInviteNote('');
+    try {
+      const r = await sharedCalendarService.inviteByEmail(calendarId, emails);
+      const parts = [];
+      if (r.invited.length) parts.push(`Invite${r.invited.length === 1 ? '' : 's'} sent to ${r.invited.join(', ')}. We emailed you a copy.`);
+      if (r.alreadyMembers.length) parts.push(`Already in this calendar: ${r.alreadyMembers.join(', ')}.`);
+      if (r.invalid.length) parts.push(`Not valid email addresses: ${r.invalid.join(', ')}.`);
+      setInviteNote(parts.join(' '));
+      setEmailInput(r.invalid.join(', '));
+      await load();
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err, 'Could not send invites. Please try again.'));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -179,9 +209,63 @@ export const ShareCalendarModal: React.FC<{
         <div className="p-5 text-sm text-gray-500">{error || 'Loading…'}</div>
       ) : (
         <div className="p-5 space-y-6">
+          {isOwner && (
+            <section className="space-y-2">
+              <h3 className="font-sans font-semibold text-gray-800 text-sm flex items-center gap-1.5"><Mail className="h-4 w-4" /> Invite by email</h3>
+              <form onSubmit={sendInvites} className="flex gap-2">
+                <label htmlFor="invite-emails" className="sr-only">Email addresses</label>
+                <input
+                  id="invite-emails"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="off"
+                  value={emailInput}
+                  onChange={e => setEmailInput(e.target.value)}
+                  placeholder="friend@email.com, roommate@email.com"
+                  className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-flow-purple"
+                />
+                <button
+                  type="submit"
+                  disabled={sending || !emailInput.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-flow-purple text-white rounded-xl hover:bg-primary-500 text-sm font-medium shrink-0 disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4" /> {sending ? 'Sending…' : 'Invite'}
+                </button>
+              </form>
+              <p className="text-xs text-gray-500">Add as many people as you like. Each person gets an email with a link to join. You'll get a copy.</p>
+              {inviteNote && <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2" role="status">{inviteNote}</p>}
+              {cal.pendingInvites?.length > 0 && (
+                <div className="pt-1">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">Waiting to join</h4>
+                  <ul className="divide-y divide-gray-100">
+                    {cal.pendingInvites.map(inv => (
+                      <li key={inv.id} className="flex items-center gap-2 py-1.5 text-sm">
+                        <span className="flex-1 truncate text-gray-700">{inv.email}</span>
+                        <span className="text-xs text-gray-400">{new Date(inv.invitedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                        <button
+                          onClick={() => run(() => sharedCalendarService.inviteByEmail(calendarId, [inv.email]))}
+                          className="text-xs text-flow-purple hover:underline px-1"
+                        >
+                          Resend
+                        </button>
+                        <button
+                          onClick={() => run(() => sharedCalendarService.cancelInvite(calendarId, inv.id))}
+                          aria-label={`Cancel invite for ${inv.email}`}
+                          className="p-1 text-gray-400 hover:text-red-600 rounded"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
+
           {isOwner ? (
             <section className="space-y-2">
-              <h3 className="font-sans font-semibold text-gray-800 text-sm">Invite link</h3>
+              <h3 className="font-sans font-semibold text-gray-800 text-sm">Or share a link</h3>
               <p className="text-sm text-gray-600">Anyone with this link can join after signing in to Flow State. New members can add and edit items.</p>
               <div className="flex gap-2">
                 <input

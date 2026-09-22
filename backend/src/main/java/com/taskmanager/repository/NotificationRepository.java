@@ -19,4 +19,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     // Required to delete notifications before deleting a task (FK constraint)
     void deleteByTask(Task task);
+
+    boolean existsByDedupKey(String dedupKey);
+
+    java.util.Optional<Notification> findByIdAndUser(Long id, User user);
 }

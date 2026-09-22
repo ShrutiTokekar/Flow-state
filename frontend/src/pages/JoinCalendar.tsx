@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Users, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { sharedCalendarService, InvitePreview, errorMessage } from '../services/sharedCalendarService';
+import { sharedCalendarService, InvitePreview, errorMessage, announceCalendarsChanged } from '../services/sharedCalendarService';
 import { setPostLoginRedirect } from '../utils/postLoginRedirect';
 
 /** Landing spot for an invite link: /join/:token */
@@ -28,6 +28,7 @@ export const JoinCalendar: React.FC = () => {
     setError('');
     try {
       const cal = await sharedCalendarService.join(token);
+      announceCalendarsChanged();
       navigate(`/calendars/${cal.id}`, { replace: true });
     } catch (e) {
       setError(errorMessage(e, 'Could not join this calendar.'));

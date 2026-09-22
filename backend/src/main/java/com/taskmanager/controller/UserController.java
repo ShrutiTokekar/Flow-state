@@ -1,6 +1,7 @@
 package com.taskmanager.controller;
 
 import com.taskmanager.dto.UserDTO;
+import com.taskmanager.service.EmailVerificationService;
 import com.taskmanager.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,10 +18,18 @@ import java.util.Map;
 public class UserController {
     
     private final UserService userService;
+    private final EmailVerificationService emailVerificationService;
     
     @Autowired
-    public UserController(UserService userService) {
+    public UserController(UserService userService, EmailVerificationService emailVerificationService) {
         this.userService = userService;
+        this.emailVerificationService = emailVerificationService;
+    }
+
+    @PostMapping("/me/resend-verification")
+    public ResponseEntity<Map<String, String>> resendVerification(@AuthenticationPrincipal UserDetails userDetails) {
+        emailVerificationService.resend(userService.findByEmail(userDetails.getUsername()));
+        return ResponseEntity.ok(Map.of("message", "Confirmation email sent"));
     }
     
     @GetMapping("/me")

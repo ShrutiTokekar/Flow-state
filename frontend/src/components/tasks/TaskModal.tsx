@@ -83,6 +83,18 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, task, onClose, onS
     setReminderMinutes('');
     setReminderType('BOTH');
     setShowReminder(false);
+
+    // Editing: show the task's current (unsent) reminder, if it has one
+    if (isOpen && task?.id) {
+      api.get(`/reminders/task/${task.id}`).then(r => {
+        const pending = (r.data as any[]).filter(x => !x.sent).pop();
+        if (pending) {
+          setReminderMinutes(pending.minutesBefore);
+          setReminderType(pending.reminderType === 'IN_APP' ? 'IN_APP' : 'BOTH');
+          setShowReminder(true);
+        }
+      }).catch(() => {});
+    }
   }, [task, isOpen]);
 
   if (!isOpen) return null;
@@ -105,7 +117,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, task, onClose, onS
       categoryId: categoryId || undefined,
     };
 
-    // Store reminder in sessionStorage — Dashboard picks it up after task creation
+    // Store reminder in sessionStorage — Dashboard sets it after the task is saved
     if (reminderMinutes && dueDate) {
       sessionStorage.setItem('pending_reminder', JSON.stringify({
         minutesBefore: reminderMinutes,
@@ -272,8 +284,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, task, onClose, onS
                   {reminderMinutes && (
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1.5">How to notify</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {(['IN_APP', 'EMAIL', 'BOTH'] as const).map(type => (
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['IN_APP', 'BOTH'] as const).map(type => (
                           <button
                             key={type}
                             onClick={() => setReminderType(type)}
@@ -283,7 +295,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, task, onClose, onS
                                 : 'bg-white text-gray-600 border-gray-200 hover:border-flow-purple'
                             }`}
                           >
-                            {type === 'IN_APP' ? '🔔 In-app' : type === 'EMAIL' ? '📧 Email' : '🔔📧 Both'}
+                            {type === 'IN_APP' ? '🔔 In the app' : '🔔📧 App + email'}
                           </button>
                         ))}
                       </div>

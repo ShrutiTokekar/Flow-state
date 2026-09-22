@@ -25,16 +25,19 @@ public class TaskService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final NotificationRepository notificationRepository;
+    private final ReminderService reminderService;
 
     @Autowired
     public TaskService(TaskRepository taskRepository,
                        UserRepository userRepository,
                        CategoryRepository categoryRepository,
-                       NotificationRepository notificationRepository) {
+                       NotificationRepository notificationRepository,
+                       ReminderService reminderService) {
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.notificationRepository = notificationRepository;
+        this.reminderService = reminderService;
     }
 
     private LocalDateTime parseDueDate(String dueDateStr) {
@@ -85,6 +88,7 @@ public class TaskService {
 
         if (taskDTO.getCategoryId() != null) {
             Category category = categoryRepository.findById(taskDTO.getCategoryId())
+                .filter(c -> c.getUser().getId().equals(user.getId())) // only your own categories
                 .orElseThrow(() -> new RuntimeException("Category not found"));
             task.setCategory(category);
         }
@@ -104,10 +108,15 @@ public class TaskService {
         if (taskDTO.getStatus() != null) task.setStatus(taskDTO.getStatus());
         if (taskDTO.getPriority() != null) task.setPriority(taskDTO.getPriority());
 
+        LocalDateTime previousDue = task.getDueDate();
         task.setDueDate(parseDueDate(taskDTO.getDueDate()));
+        if (!java.util.Objects.equals(previousDue, task.getDueDate())) {
+            reminderService.rescheduleForTask(task);
+        }
 
         if (taskDTO.getCategoryId() != null) {
             Category category = categoryRepository.findById(taskDTO.getCategoryId())
+                .filter(c -> c.getUser().getId().equals(user.getId())) // only your own categories
                 .orElseThrow(() -> new RuntimeException("Category not found"));
             task.setCategory(category);
         } else {
@@ -130,8 +139,9 @@ public class TaskService {
             .orElseThrow(() -> new RuntimeException("Task not found"));
         if (!task.getUser().getId().equals(user.getId())) throw new RuntimeException("Unauthorized");
 
-        // Delete linked notifications first to avoid FK constraint violation
+        // Delete linked notifications and reminders first to avoid FK constraint violations
         notificationRepository.deleteByTask(task);
+        reminderService.deleteRemindersForTask(task.getId());
 
         taskRepository.delete(task);
     }
