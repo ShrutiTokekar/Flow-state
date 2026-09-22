@@ -63,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Sidebar — always a slide-in drawer, never static */}
       <aside
         className={`
-          fixed top-16 bottom-0 left-0 z-50
+          fixed top-[calc(4rem+env(safe-area-inset-top))] bottom-0 left-0 z-50
           w-64 bg-flow-pink border-r border-flow-lavender
           transform transition-transform duration-200 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}

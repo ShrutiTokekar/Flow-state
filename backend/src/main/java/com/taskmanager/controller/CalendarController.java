@@ -4,19 +4,24 @@ import com.taskmanager.dto.TaskDTO;
 import com.taskmanager.model.CalendarEvent;
 import com.taskmanager.model.User;
 import com.taskmanager.service.CalendarEventService;
+import com.taskmanager.service.FreeTimeService;
+import com.taskmanager.service.FreeTimeService.FreeSlot;
 import com.taskmanager.service.TaskService;
 import com.taskmanager.service.UserService;
 
 import jakarta.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +33,7 @@ public class CalendarController {
     @Autowired private CalendarEventService calendarEventService;
     @Autowired private TaskService taskService;
     @Autowired private UserService userService;
+    @Autowired private FreeTimeService freeTimeService;
 
     @GetMapping("/events")
     public ResponseEntity<List<CalendarEvent>> getEvents(Authentication auth) {
@@ -66,6 +72,23 @@ public class CalendarController {
         User user = userService.findByEmail(auth.getName());
         calendarEventService.deleteEvent(user, id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Open time in the user's week, counting personal events and events on
+     * every shared calendar they belong to as busy.
+     */
+    @GetMapping("/free-time")
+    public ResponseEntity<List<FreeSlot>> getFreeTime(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "08:00") LocalTime dayStart,
+            @RequestParam(defaultValue = "22:00") LocalTime dayEnd,
+            @RequestParam(defaultValue = "30") int minMinutes,
+            Authentication auth) {
+        SharedCalendarController.requireValidFreeTimeQuery(from, to, minMinutes);
+        User user = userService.findByEmail(auth.getName());
+        return ResponseEntity.ok(freeTimeService.findFreeTime(List.of(user), from, to, dayStart, dayEnd, minMinutes));
     }
 
     /**

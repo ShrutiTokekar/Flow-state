@@ -1,0 +1,9 @@
+{
+  "appId": "com.flowstatemanage.app",
+  "appName": "Flow State",
+  "webDir": "build",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#8894d1"
+  }
+}

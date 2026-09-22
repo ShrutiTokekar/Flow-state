@@ -1,6 +1,6 @@
 
 // API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.flowstatemanage.com/api';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.flowstatemanage.com/api';
 
 export const API_ENDPOINTS = {
   // Auth
@@ -21,8 +21,8 @@ export const API_ENDPOINTS = {
 };
 
 // Development mode check
-export const isDevelopment = import.meta.env.MODE === 'development';
-export const isProduction = import.meta.env.MODE === 'production';
+export const isDevelopment = process.env.NODE_ENV === 'development';
+export const isProduction = process.env.NODE_ENV === 'production';
 
 console.log('🚀 API Configuration:', {
   baseURL: API_BASE_URL,

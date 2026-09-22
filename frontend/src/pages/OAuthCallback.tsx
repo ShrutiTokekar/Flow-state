@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { takePostLoginRedirect } from '../utils/postLoginRedirect';
 import { useAuthStore } from '../store/authStore';
 import { Loader2 } from 'lucide-react';
 
@@ -32,7 +33,7 @@ export const OAuthCallback: React.FC = () => {
       setAuthenticated(true);
       
       // Redirect to dashboard
-      navigate('/dashboard', { replace: true });
+      navigate(takePostLoginRedirect(), { replace: true });
     } else {
       // Failed to get token, redirect to login
       navigate('/login', { replace: true });
