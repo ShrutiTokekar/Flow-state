@@ -108,7 +108,7 @@ export const DATE_FORMATS = {
 
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || 'https://api.flowstatemanage.com/api',
+  BASE_URL: process.env.REACT_APP_API_URL || 'https://api.flowstatemanage.com/api',
   TIMEOUT: 30000, // 30 seconds
 } as const;
 

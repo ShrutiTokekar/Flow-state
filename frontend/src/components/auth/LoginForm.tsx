@@ -1,36 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { LogIn, Mail, Lock, AlertCircle, ChevronDown } from 'lucide-react';
+import { LogIn, AlertCircle } from 'lucide-react';
+import { takePostLoginRedirect } from '../../utils/postLoginRedirect';
+import { isNativeApp } from '../../utils/platform';
 
 export const LoginForm: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading, error, clearError } = useAuthStore();
-  const [showLogin, setShowLogin] = useState(false);
-  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const loginSection = document.getElementById('login-section');
-      if (loginSection) {
-        loginSection.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleScroll = () => {
-    const loginSection = document.getElementById('login-section');
-    if (loginSection) {
-      loginSection.scrollIntoView({ behavior: 'smooth' });
-      setShowLogin(true);
-    }
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -42,7 +23,7 @@ export const LoginForm: React.FC = () => {
     e.preventDefault();
     try {
       await login(formData);
-      navigate('/dashboard');
+      navigate(takePostLoginRedirect(), { replace: true });
     } catch (error) {
       // Error is handled by the store
     }
@@ -53,40 +34,15 @@ export const LoginForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-flow-purple overflow-y-scroll snap-y snap-mandatory">
-      {/* Hero Section */}
-      <section className="min-h-screen flex flex-col items-center justify-center px-4 snap-start relative">
-        <div className="animate-slide-down">
-          <img 
-            src="/Logo.png" 
-            alt="Flow State Logo" 
-            className="h-80 w-80 md:h-96 md:w-96 object-contain mb-8 drop-shadow-1l"
-          />
-        </div>
-
-        <h1 className="font-heading text-6xl md:text-8xl font-bold text-flow-green text-center mb-4 animate-fade-in" style={{ animationDelay: '0.3s', opacity: 0, animationFillMode: 'forwards' }}>
-          Flow State
-        </h1>
-
-        <p className="font-sans text-xl md:text-2xl text-text-light-purple text-center max-w-2xl mb-12 animate-fade-in" style={{ animationDelay: '0.6s', opacity: 0, animationFillMode: 'forwards' }}>
-         Want to get into your own Flow State? </p>
-         <p>Start manage your tasks effortlessly the ultimate task management app designed to help you focus, organize, and conquer your to-do list with ease.</p>
-
-        <button
-          onClick={handleScroll}
-          className="animate-bounce-slow cursor-pointer flex flex-col items-center gap-2 text-flow-green hover:text-flow-yellow transition-colors animate-fade-in"
-          style={{ animationDelay: '1s', opacity: 0, animationFillMode: 'forwards' }}
-        >
-          <span className="font-sans text-lg">Scroll down to try</span>
-          <ChevronDown className="w-8 h-8" />
-        </button>
-      </section>
-
-      {/* Login Section */}
-      <section id="login-section" className="min-h-screen flex items-center justify-center px-4 snap-start">
+    <div className="min-h-[100dvh] bg-flow-purple flex flex-col items-center justify-center px-4 py-10">
+      <Link to="/" className="flex items-center gap-2 mb-6">
+        <img src="/Logo.png" alt="" className="h-14 w-14 object-contain" />
+        <span className="font-heading text-4xl text-flow-green">Flow State</span>
+      </Link>
+      <section id="login-section" className="w-full flex justify-center">
         <div className="max-w-md w-full">
           
-          <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
             <div className="text-center mb-8">
               <h2 className="font-heading text-4xl font-bold text-flow-purple mb-2">
                 Welcome Back
@@ -96,7 +52,9 @@ export const LoginForm: React.FC = () => {
               </p>
             </div>
 
-            {/* Google Sign In */}
+            {/* Google Sign In — hidden in the iOS app: Google blocks OAuth inside app web views,
+                and offering it would also require adding Sign in with Apple. */}
+            {!isNativeApp() && (<>
             <button
               onClick={handleGoogleLogin}
               type="button"
@@ -119,6 +77,8 @@ export const LoginForm: React.FC = () => {
                 <span className="px-2 bg-white text-text-gray font-sans">Or continue with email</span>
               </div>
             </div>
+
+            </>)}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (

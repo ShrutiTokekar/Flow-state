@@ -30,32 +30,34 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle, isSidebarOpen }) =
   };
 
   return (
-    <header className="bg-flow-green border-b border-flow-lavender sticky top-0 z-50">
-      <div className="px-4 sm:px-6 lg:px-8">
+    <header className="bg-flow-green border-b border-flow-lavender sticky top-0 z-50 pt-[env(safe-area-inset-top)]">
+      <div className="px-2 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Left — menu button + logo */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 sm:gap-4">
             <button
               onClick={onMenuToggle}
+              aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
               className="p-2 rounded-md text-gray-600 hover:bg-flow-lavender"
             >
               {isSidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
 
-            <Link to="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <img src="./Logo.png" alt="Flow State Logo" className="h-12 w-12 object-contain" />
-              <span className="font-heading text-4xl font-bold text-flow-purple">Flow State</span>
+            <Link to="/dashboard" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity">
+              <img src="/Logo.png" alt="" className="h-9 w-9 sm:h-12 sm:w-12 object-contain" />
+              <span className="font-heading text-2xl sm:text-4xl font-bold text-flow-purple">Flow State</span>
             </Link>
           </div>
 
           {/* Right — notifications + user */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 sm:gap-4">
             <div className="relative">
               <button
                 onClick={() => {
                   setIsNotificationOpen(!isNotificationOpen);
                   if (!isNotificationOpen) setUnreadCount(0);
                 }}
+                aria-label="Notifications"
                 className="p-2 rounded-lg hover:bg-flow-lavender transition-colors relative"
               >
                 <Bell className="h-6 w-6 text-gray-700" />
@@ -75,13 +77,14 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle, isSidebarOpen }) =
             <div className="relative">
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-flow-lavender transition-colors"
+                aria-label="Account menu"
+                className="flex items-center gap-3 px-1 sm:px-3 py-2 rounded-lg hover:bg-flow-lavender transition-colors"
               >
                 <div className="text-right hidden sm:block">
                   <div className="text-sm font-medium text-gray-900 font-sans">{user?.name}</div>
                   <div className="text-xs text-gray-500 font-sans">{user?.email}</div>
                 </div>
-                <div className="h-10 w-10 rounded-full bg-flow-purple flex items-center justify-center text-white font-heading text-lg">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-flow-purple flex items-center justify-center text-white font-heading text-lg">
                   {user?.name?.charAt(0).toUpperCase()}
                 </div>
               </button>

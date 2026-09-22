@@ -30,7 +30,11 @@ Flow State is a full-stack task management application designed to help you orga
 - **Custom Categories** — organize tasks your way
 - **Task Statistics** — visual overview of task status at a glance
 - **Authentication** — email/password login and Google OAuth
-- **Responsive Design** — works on desktop, tablet, and mobile
+- **Shared Calendars** — create calendars for roommates, study groups or teams and share them with one invite link; members can add events and shared to-dos, and the owner controls who can edit or only view
+- **Free Time Finder** — lists your open slots for the week (and highlights them on the calendar); on a shared calendar it finds times when *everyone* is free, without revealing anyone's other events
+- **Apple Calendar Export** — download your events and task deadlines as an `.ics` file
+- **Landing Page** — a public homepage that explains the product before sign-up
+- **Mobile-first** — bottom tab bar, bottom-sheet dialogs and safe-area support on phones; packaged as an iOS app with Capacitor
 
 ---
 
@@ -78,6 +82,21 @@ Flow State is a full-stack task management application designed to help you orga
 | DELETE | `/api/tasks/:id` | Delete task |
 | GET | `/api/tasks/stats` | Get task statistics |
 
+### Shared Calendars
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/calendars` | Calendars I belong to |
+| POST | `/api/calendars` | Create calendar (`{name, color}`) |
+| GET / PUT / DELETE | `/api/calendars/:id` | Details + members / rename / delete (owner) |
+| POST | `/api/calendars/:id/share-link` | Reset invite link (owner) |
+| GET | `/api/calendars/invite/:token` | Public invite preview |
+| POST | `/api/calendars/invite/:token/join` | Join as editor |
+| PUT / DELETE | `/api/calendars/:id/members/:userId` | Change role (owner) / remove member or leave |
+| GET / POST | `/api/calendars/:id/events` | List / add events and shared tasks |
+| PUT / DELETE | `/api/calendars/:id/events/:eventId` | Edit (e.g. `{completed: true}`) / delete |
+| GET | `/api/calendars/:id/free-time` | When every member is free |
+| GET | `/api/calendar/free-time` | My free time (`from`, `to`, `dayStart`, `dayEnd`, `minMinutes`) |
+
 ### Categories
 | Method | Endpoint | Description |
 |---|---|---|
@@ -122,10 +141,13 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 DATABASE_URL=jdbc:postgresql://localhost:5432/flowstate
 ```
 
-**Frontend** `.env`
+**Frontend** `.env` (Create React App only reads `REACT_APP_*` variables)
 ```
-VITE_API_URL=http://localhost:8080
+REACT_APP_API_URL=http://localhost:8080/api   # defaults to https://api.flowstatemanage.com/api
+REACT_APP_PUBLIC_URL=https://flowstatemanage.com  # used for invite links inside the iOS app
 ```
+
+**Backend CORS**: include `capacitor://localhost` in `CORS_ALLOWED_ORIGINS` so the iOS app can call the API.
 
 ---
 
@@ -138,6 +160,25 @@ VITE_API_URL=http://localhost:8080
 | Database | Railway PostgreSQL |
 
 See [DEPLOYMENT_GUIDE.md](https://github.com/ShrutiTokekar/Flow-state/blob/main/DEPLOYMENT_GUIDE.md) for full instructions.
+
+---
+
+## iOS App (App Store)
+
+The iOS app wraps the React build with [Capacitor](https://capacitorjs.com). The Xcode project lives in `frontend/ios`.
+
+```bash
+cd frontend
+npm run ios:sync   # build the web app and copy it into the iOS project
+npm run ios:open   # open in Xcode, then Product → Archive → Distribute to App Store
+```
+
+Before submitting:
+- Install full **Xcode** (not just Command Line Tools) and join the **Apple Developer Program**
+- In Xcode → Signing & Capabilities, choose your team; bundle ID is `com.flowstatemanage.app`
+- Create the app in **App Store Connect**: screenshots, description, privacy policy URL, privacy "nutrition label"
+- **Account deletion** must be available in the app (App Store rule 5.1.1(v)); the API does not have this yet
+- Google sign-in is hidden in the iOS app: Google blocks OAuth inside app web views, and offering it would also require Sign in with Apple (rule 4.8)
 
 ---
 
