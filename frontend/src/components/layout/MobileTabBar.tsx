@@ -1,13 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FolderKanban, User } from 'lucide-react';
-
-const tabs = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Tasks' },
-  { to: '/calendar', icon: Calendar, label: 'Calendar' },
-  { to: '/categories', icon: FolderKanban, label: 'Categories' },
-  { to: '/profile', icon: User, label: 'Profile' },
-];
+import { NAV_ITEMS } from './navItems';
 
 /** App-style bottom navigation, shown on phones only. */
 export const MobileTabBar: React.FC = () => (
@@ -16,16 +9,22 @@ export const MobileTabBar: React.FC = () => (
     className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-gray-200 pb-[env(safe-area-inset-bottom)]"
   >
     <ul className="grid grid-cols-4">
-      {tabs.map(({ to, icon: Icon, label }) => (
+      {NAV_ITEMS.map(({ to, icon: Icon, short }) => (
         <li key={to}>
           <NavLink
             to={to}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${isActive ? 'text-flow-purple' : 'text-gray-500'}`
+              `flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${isActive ? 'text-flow-purple font-semibold' : 'text-gray-500'}`
             }
           >
-            <Icon className="h-6 w-6" aria-hidden />
-            {label}
+            {({ isActive }) => (
+              <>
+                <span className={`px-4 py-1 rounded-full ${isActive ? 'bg-flow-purple text-white' : ''}`}>
+                  <Icon className="h-5 w-5" aria-hidden />
+                </span>
+                {short}
+              </>
+            )}
           </NavLink>
         </li>
       ))}

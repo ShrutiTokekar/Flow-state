@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Category, CategoryFormData } from '../../types';
 import { X, Check } from 'lucide-react';
-import * as Icons from 'lucide-react';
+import { CATEGORY_ICONS, getCategoryIcon } from '../../utils/categoryIcons';
 
 interface CategoryModalProps {
   isOpen: boolean;
@@ -24,28 +24,7 @@ const THEME_COLORS = [
   { label: 'Sky',       value: '#87ceeb' },
 ];
 
-const CATEGORY_ICONS = [
-  { value: 'folder', label: 'Folder' },
-  { value: 'briefcase', label: 'Work' },
-  { value: 'home', label: 'Home' },
-  { value: 'heart', label: 'Personal' },
-  { value: 'book', label: 'Study' },
-  { value: 'shopping-cart', label: 'Shopping' },
-  { value: 'dumbbell', label: 'Fitness' },
-  { value: 'music', label: 'Music' },
-  { value: 'camera', label: 'Creative' },
-  { value: 'code', label: 'Dev' },
-  { value: 'star', label: 'Important' },
-  { value: 'target', label: 'Goals' },
-  { value: 'coffee', label: 'Daily' },
-  { value: 'plane', label: 'Travel' },
-  { value: 'dollar-sign', label: 'Finance' },
-];
-
-const getIconComponent = (iconName: string) => {
-  const key = iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
-  return (Icons as any)[key] || Icons.Folder;
-};
+const getIconComponent = getCategoryIcon;
 
 export const CategoryModal: React.FC<CategoryModalProps> = ({ isOpen, onClose, onSubmit, category }) => {
   const [formData, setFormData] = useState<CategoryFormData>({

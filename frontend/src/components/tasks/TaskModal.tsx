@@ -69,7 +69,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, task, onClose, onS
         setDueDate('');
         setDueTime('');
       }
-      setCategoryId(task.category?.id || '');
+      // Tasks from the API carry categoryId directly (older code used a nested category object)
+      setCategoryId((task as any).categoryId ?? task.category?.id ?? '');
     } else {
       setTitle('');
       setDescription('');
@@ -125,8 +126,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, task, onClose, onS
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[92vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-xl font-bold font-heading text-gray-900">

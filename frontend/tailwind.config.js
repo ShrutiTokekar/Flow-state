@@ -12,6 +12,8 @@ module.exports = {
         'flow-lavender': '#dfc9e6',
         'flow-yellow': '#fdfac5',
         'flow-pink': '#dfa4c6',
+        // Soft page background for the logged-in app
+        'flow-cream': '#fefcf3',
         
         // Flow State Text Colors
         'text-light-purple': '#cad1f1',

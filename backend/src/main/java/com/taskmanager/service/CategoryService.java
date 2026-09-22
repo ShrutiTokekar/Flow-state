@@ -77,7 +77,11 @@ public class CategoryService {
         if (!category.getUser().getId().equals(userId)) {
             throw new RuntimeException("Unauthorized access to category");
         }
-        
+
+        // Category.tasks cascades ALL, so deleting the category would delete its tasks too.
+        // Detach them first so they're kept, just without a category.
+        category.getTasks().forEach(task -> task.setCategory(null));
+        category.getTasks().clear();
         categoryRepository.delete(category);
     }
     
