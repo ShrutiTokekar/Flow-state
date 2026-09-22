@@ -31,6 +31,14 @@ public class Notification {
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    // In-app path to open when the notification is tapped, e.g. "/calendars/4"
+    @Column(name = "link", length = 255)
+    private String link;
+
+    // Identifies one-time alerts (e.g. "overdue:12:2026-09-22T00:00") so they're never sent twice
+    @Column(name = "dedup_key", length = 120)
+    private String dedupKey;
     
     @PrePersist
     protected void onCreate() {
@@ -41,7 +49,8 @@ public class Notification {
         REMINDER,
         DEADLINE,
         SYNC,
-        INFO
+        INFO,
+        CALENDAR
     }
     
     // Constructors
@@ -96,6 +105,22 @@ public class Notification {
         this.type = type;
     }
     
+    public String getLink() {
+        return link;
+    }
+
+    public void setLink(String link) {
+        this.link = link;
+    }
+
+    public String getDedupKey() {
+        return dedupKey;
+    }
+
+    public void setDedupKey(String dedupKey) {
+        this.dedupKey = dedupKey;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }

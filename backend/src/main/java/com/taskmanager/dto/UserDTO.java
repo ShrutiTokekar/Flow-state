@@ -7,6 +7,7 @@ public class UserDTO {
     private String role;
     private String avatarUrl;
     private Boolean emailNotifications;
+    private Boolean emailVerified;
 
     public UserDTO() {
     }
@@ -67,4 +68,7 @@ public class UserDTO {
     public void setEmailNotifications(Boolean emailNotifications) {
         this.emailNotifications = emailNotifications;
     }
+
+    public Boolean getEmailVerified() { return emailVerified; }
+    public void setEmailVerified(Boolean emailVerified) { this.emailVerified = emailVerified; }
 }

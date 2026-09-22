@@ -34,6 +34,18 @@ public class User {
     
     @Column(name = "email_notifications")
     private Boolean emailNotifications;
+
+    // null = account created before email verification existed (treated as verified).
+    // Google sign-ins are verified by Google, so they start as true.
+    @Column(name = "email_verified")
+    private Boolean emailVerified;
+
+    // SHA-256 hash of the emailed verification token; the raw token is never stored.
+    @Column(name = "verification_token_hash", length = 64)
+    private String verificationTokenHash;
+
+    @Column(name = "verification_sent_at")
+    private LocalDateTime verificationSentAt;
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -113,6 +125,30 @@ public class User {
 
     public void setEmailNotifications(Boolean emailNotifications) {
         this.emailNotifications = emailNotifications;
+    }
+
+    public Boolean getEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(Boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public String getVerificationTokenHash() {
+        return verificationTokenHash;
+    }
+
+    public void setVerificationTokenHash(String verificationTokenHash) {
+        this.verificationTokenHash = verificationTokenHash;
+    }
+
+    public LocalDateTime getVerificationSentAt() {
+        return verificationSentAt;
+    }
+
+    public void setVerificationSentAt(LocalDateTime verificationSentAt) {
+        this.verificationSentAt = verificationSentAt;
     }
 
     public LocalDateTime getCreatedAt() {

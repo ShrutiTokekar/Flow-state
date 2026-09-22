@@ -9,6 +9,7 @@ import {
   SharedCalendarDetail,
   FreeSlot,
   errorMessage,
+  announceCalendarsChanged,
 } from '../services/sharedCalendarService';
 import { NewCalendarModal, ShareCalendarModal } from '../components/calendar/SharedCalendarModals';
 import { FreeTimePanel } from '../components/calendar/FreeTimePanel';
@@ -770,6 +771,7 @@ export const CalendarPage: React.FC = () => {
           onCreated={cal => {
             setShowNewCalendar(false);
             loadCalendars();
+            announceCalendarsChanged();
             routerNavigate(`/calendars/${cal.id}`);
             setShowShare(true);
           }}
@@ -780,8 +782,8 @@ export const CalendarPage: React.FC = () => {
         <ShareCalendarModal
           calendarId={calendarId}
           onClose={() => setShowShare(false)}
-          onChanged={() => { loadCalendars(); loadData(); }}
-          onGone={() => { setShowShare(false); loadCalendars(); routerNavigate('/calendar'); }}
+          onChanged={() => { loadCalendars(); loadData(); announceCalendarsChanged(); }}
+          onGone={() => { setShowShare(false); loadCalendars(); announceCalendarsChanged(); routerNavigate('/calendar'); }}
         />
       )}
       {/* Phones: floating Add button above the tab bar */}

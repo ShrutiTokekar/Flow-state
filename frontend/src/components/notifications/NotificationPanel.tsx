@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, X, Check, CheckCheck, Trash2, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 
 interface Notification {
   id: number;
   message: string;
-  type: 'REMINDER' | 'DEADLINE' | 'SYNC' | 'INFO';
+  type: 'REMINDER' | 'DEADLINE' | 'SYNC' | 'INFO' | 'CALENDAR';
+  link?: string | null; // in-app path to open when tapped
   isRead: boolean;
   createdAt: string;
   task?: { id: number; title: string };
@@ -16,6 +18,7 @@ const typeStyles: Record<string, string> = {
   REMINDER: 'border-l-4 border-orange-400 bg-orange-50',
   INFO:     'border-l-4 border-flow-purple bg-purple-50',
   SYNC:     'border-l-4 border-blue-400 bg-blue-50',
+  CALENDAR: 'border-l-4 border-green-400 bg-green-50',
 };
 
 const typeIcon: Record<string, string> = {
@@ -23,9 +26,14 @@ const typeIcon: Record<string, string> = {
   REMINDER: '⏰',
   INFO:     '✅',
   SYNC:     '🔄',
+  CALENDAR: '📅',
 };
 
+// Newer messages already start with their own emoji; don't show a second one.
+const startsWithEmoji = (s: string) => /^\p{Extended_Pictographic}/u.test(s);
+
 export const NotificationPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -76,6 +84,14 @@ export const NotificationPanel: React.FC<{ onClose: () => void }> = ({ onClose }
     } catch (e) { console.error(e); }
   };
 
+  const openNotification = (n: Notification) => {
+    if (!n.isRead) markRead(n.id);
+    if (n.link) {
+      onClose();
+      navigate(n.link);
+    }
+  };
+
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
@@ -118,7 +134,7 @@ export const NotificationPanel: React.FC<{ onClose: () => void }> = ({ onClose }
       </div>
 
       {/* Body */}
-      <div className="max-h-[420px] overflow-y-auto">
+      <div className="max-h-[60vh] sm:max-h-[420px] overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-flow-purple border-t-transparent" />
@@ -138,18 +154,28 @@ export const NotificationPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                   n.isRead ? 'opacity-60' : 'bg-white'
                 } ${typeStyles[n.type] || typeStyles.INFO}`}
               >
-                <span className="text-base mt-0.5 shrink-0">{typeIcon[n.type] || '🔔'}</span>
-                <div className="flex-1 min-w-0">
+                {!startsWithEmoji(n.message) && (
+                  <span className="text-base mt-0.5 shrink-0" aria-hidden>{typeIcon[n.type] || '🔔'}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => openNotification(n)}
+                  className={`flex-1 min-w-0 text-left ${n.link ? 'cursor-pointer' : 'cursor-default'}`}
+                >
                   <p className={`text-sm leading-snug ${n.isRead ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                     {n.message}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">{formatTime(n.createdAt)}</p>
-                </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {formatTime(n.createdAt)}
+                    {n.link && <span className="text-flow-purple font-medium"> · {n.link.startsWith('/join/') ? 'View invite' : 'Open'}</span>}
+                  </p>
+                </button>
                 <div className="flex gap-1 shrink-0">
                   {!n.isRead && (
                     <button
                       onClick={() => markRead(n.id)}
                       title="Mark read"
+                      aria-label="Mark read"
                       className="p-1 text-gray-400 hover:text-flow-purple hover:bg-flow-lavender rounded-lg transition-colors"
                     >
                       <Check className="h-3.5 w-3.5" />
@@ -158,6 +184,7 @@ export const NotificationPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                   <button
                     onClick={() => deleteNotification(n.id)}
                     title="Delete"
+                    aria-label="Delete notification"
                     className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

@@ -1,87 +1,91 @@
 package com.taskmanager.controller;
 
-import com.taskmanager.model.Notification;
+import com.taskmanager.model.Reminder;
 import com.taskmanager.model.Task;
 import com.taskmanager.model.User;
 import com.taskmanager.repository.TaskRepository;
 import com.taskmanager.repository.UserRepository;
-import com.taskmanager.service.NotificationService;
-
-import jakarta.validation.Valid;
-
-import com.taskmanager.service.EmailService;
+import com.taskmanager.service.ReminderService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/reminders")
-@CrossOrigin(origins = "${cors.allowed.origins}")
 public class ReminderController {
 
-    private final NotificationService notificationService;
+    private final ReminderService reminderService;
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
-    private final EmailService emailService;
 
-    public ReminderController(NotificationService notificationService,
-                               TaskRepository taskRepository,
-                               UserRepository userRepository,
-                               EmailService emailService) {
-        this.notificationService = notificationService;
+    public ReminderController(ReminderService reminderService, TaskRepository taskRepository,
+                              UserRepository userRepository) {
+        this.reminderService = reminderService;
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
-        this.emailService = emailService;
     }
 
     /**
-     * Called by frontend after task creation to register a reminder.
-     * Body: { taskId, minutesBefore, reminderType }
-     * reminderType: "IN_APP" | "EMAIL" | "BOTH"
+     * Set (or replace) a task's reminder.
+     * Body: { taskId, minutesBefore, reminderType: "IN_APP" | "EMAIL" | "BOTH" }
      */
     @PostMapping
-    public ResponseEntity<?> createReminder(@Valid @RequestBody Map<String, Object> body,
-                                             Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> createReminder(@RequestBody Map<String, Object> body,
+                                                              Authentication authentication) {
+        User user = me(authentication);
+        Task task = ownTask(user, parseLong(body.get("taskId"), "taskId"));
+        int minutesBefore = (int) parseLong(body.get("minutesBefore"), "minutesBefore");
+        Reminder.ReminderType type;
         try {
-            User user = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+            type = Reminder.ReminderType.valueOf(String.valueOf(body.getOrDefault("reminderType", "BOTH")));
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reminderType must be IN_APP, EMAIL or BOTH");
+        }
 
-            Long taskId = Long.valueOf(body.get("taskId").toString());
-            int minutesBefore = Integer.parseInt(body.get("minutesBefore").toString());
-            String reminderType = body.getOrDefault("reminderType", "BOTH").toString();
+        Reminder r = reminderService.setReminder(task, user, minutesBefore, type);
+        return ResponseEntity.ok(toMap(r));
+    }
 
-            Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+    @GetMapping("/task/{taskId}")
+    public List<Map<String, Object>> forTask(@PathVariable Long taskId, Authentication authentication) {
+        return reminderService.getRemindersForTask(ownTask(me(authentication), taskId)).stream()
+            .map(this::toMap).toList();
+    }
 
-            // Create an immediate in-app notification confirming the reminder was set
-            String confirmMsg = "🔔 Reminder set for \"" + task.getTitle() + "\" — "
-                + minutesBefore + " minute" + (minutesBefore == 1 ? "" : "s") + " before deadline.";
-            notificationService.createNotification(user, confirmMsg, Notification.NotificationType.INFO, task);
+    private Map<String, Object> toMap(Reminder r) {
+        return Map.of(
+            "id", r.getId(),
+            "taskId", r.getTask().getId(),
+            "minutesBefore", r.getMinutesBefore() != null ? r.getMinutesBefore() : 0,
+            "reminderTime", r.getReminderTime().toString(),
+            "reminderType", r.getReminderType().name(),
+            "sent", Boolean.TRUE.equals(r.getIsSent()));
+    }
 
-            // If task has a due date, schedule reminder time
-            if (task.getDueDate() != null) {
-                LocalDateTime reminderTime = task.getDueDate().minusMinutes(minutesBefore);
-                LocalDateTime now = LocalDateTime.now();
+    private User me(Authentication auth) {
+        return userRepository.findByEmail(auth.getName())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+    }
 
-                // If reminder time is still in the future, store as a scheduled notification
-                // (NotificationScheduler will pick it up based on dueDate)
-                // If reminder time has already passed or is within 5 min, fire immediately
-                if (reminderTime.isBefore(now.plusMinutes(5))) {
-                    String msg = "⏰ Reminder: \"" + task.getTitle() + "\" is due very soon!";
-                    notificationService.createNotification(user, msg, Notification.NotificationType.REMINDER, task);
+    private Task ownTask(User user, long taskId) {
+        Task task = taskRepository.findById(taskId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
+        if (!task.getUser().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found");
+        }
+        return task;
+    }
 
-                    if ("EMAIL".equals(reminderType) || "BOTH".equals(reminderType)) {
-                        emailService.sendTaskDueReminderNotification(user, task);
-                    }
-                }
-            }
-
-            return ResponseEntity.ok(Map.of("success", true, "message", "Reminder registered"));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+    private static long parseLong(Object value, String field) {
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " must be a number");
         }
     }
 }

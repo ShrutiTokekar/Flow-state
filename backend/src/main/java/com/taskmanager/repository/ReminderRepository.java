@@ -25,4 +25,6 @@ public interface ReminderRepository extends JpaRepository<Reminder, Long> {
     List<Reminder> findByUserAndIsSentFalseOrderByReminderTimeAsc(User user);
     
     void deleteByTaskId(Long taskId);
+
+    List<Reminder> findByTaskAndIsSentFalse(Task task);
 }

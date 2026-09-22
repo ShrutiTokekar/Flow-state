@@ -65,6 +65,8 @@ public class UserService {
         dto.setRole(user.getRole());
         dto.setAvatarUrl(user.getAvatarUrl());
         dto.setEmailNotifications(user.getEmailNotifications());
+        // Accounts created before verification existed (null) count as verified
+        dto.setEmailVerified(!Boolean.FALSE.equals(user.getEmailVerified()));
         return dto;
     }
 }

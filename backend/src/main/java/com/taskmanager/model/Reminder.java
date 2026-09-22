@@ -21,6 +21,10 @@ public class Reminder {
     
     @Column(name = "reminder_time", nullable = false)
     private LocalDateTime reminderTime;
+
+    // Kept so the reminder can move when the task's due date changes
+    @Column(name = "minutes_before")
+    private Integer minutesBefore;
     
     @Column(name = "is_sent")
     private Boolean isSent = false;
@@ -38,9 +42,10 @@ public class Reminder {
     }
     
     public enum ReminderType {
-        EMAIL,
-        PUSH,
-        IN_APP
+        EMAIL,   // email + in-app
+        PUSH,    // in-app until native push is set up
+        IN_APP,
+        BOTH     // same as EMAIL; kept because the app sends "BOTH"
     }
     
     // Constructors
@@ -102,4 +107,7 @@ public class Reminder {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public Integer getMinutesBefore() { return minutesBefore; }
+    public void setMinutesBefore(Integer minutesBefore) { this.minutesBefore = minutesBefore; }
 }

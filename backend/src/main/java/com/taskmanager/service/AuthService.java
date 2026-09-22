@@ -22,17 +22,20 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthenticationManager authenticationManager;
+    private final EmailVerificationService emailVerificationService;
     
     @Autowired
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
-            AuthenticationManager authenticationManager) {
+            AuthenticationManager authenticationManager,
+            EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.authenticationManager = authenticationManager;
+        this.emailVerificationService = emailVerificationService;
     }
     
     @Transactional
@@ -48,8 +51,12 @@ public class AuthService {
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole("USER");
+        user.setEmailVerified(false);
         
         user = userRepository.save(user);
+
+        // Welcome email with a "confirm your email" link (sent in the background)
+        emailVerificationService.startVerification(user);
         
         // Generate JWT token
         String token = jwtTokenProvider.generateToken(user.getEmail());
@@ -83,6 +90,8 @@ public class AuthService {
         dto.setRole(user.getRole());
         dto.setAvatarUrl(user.getAvatarUrl());
         dto.setEmailNotifications(user.getEmailNotifications());
+        // Accounts created before verification existed (null) count as verified
+        dto.setEmailVerified(!Boolean.FALSE.equals(user.getEmailVerified()));
         return dto;
     }
 }

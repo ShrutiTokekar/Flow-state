@@ -27,6 +27,19 @@ export interface SharedCalendarDetail {
   ownerName: string;
   shareToken: string | null; // only returned to the owner
   members: CalendarMember[];
+  pendingInvites: PendingInvite[]; // only returned to the owner
+}
+
+export interface PendingInvite {
+  id: number;
+  email: string;
+  invitedAt: string;
+}
+
+export interface InviteResult {
+  invited: string[];
+  alreadyMembers: string[];
+  invalid: string[];
 }
 
 export interface InvitePreview {
@@ -69,6 +82,10 @@ const PUBLIC_WEB_URL = process.env.REACT_APP_PUBLIC_URL || 'https://flowstateman
 const webOrigin = () =>
   window.location.protocol.startsWith('http') ? window.location.origin : PUBLIC_WEB_URL;
 
+// Lets the sidebar and other lists refresh after a calendar is created, joined, left or deleted.
+export const CALENDARS_CHANGED = 'flowstate:calendars-changed';
+export const announceCalendarsChanged = () => window.dispatchEvent(new Event(CALENDARS_CHANGED));
+
 export const inviteUrl = (token: string) => `${webOrigin()}/join/${token}`;
 
 // Readable message from a failed request, falling back to a generic one.
@@ -90,6 +107,9 @@ export const sharedCalendarService = {
     api.get<InvitePreview>(`/calendars/invite/${encodeURIComponent(token)}`).then(r => r.data),
   join: (token: string) =>
     api.post<SharedCalendarSummary>(`/calendars/invite/${encodeURIComponent(token)}/join`).then(r => r.data),
+  inviteByEmail: (id: number, emails: string[]) =>
+    api.post<InviteResult>(`/calendars/${id}/invites`, { emails }).then(r => r.data),
+  cancelInvite: (id: number, inviteId: number) => api.delete(`/calendars/${id}/invites/${inviteId}`),
   changeRole: (id: number, userId: number, role: CalendarRole) =>
     api.put(`/calendars/${id}/members/${userId}`, { role }),
   removeMember: (id: number, userId: number) => api.delete(`/calendars/${id}/members/${userId}`),

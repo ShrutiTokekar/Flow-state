@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Plus, Sparkles, X } from 'lucide-react';
 import { NAV_ITEMS } from './navItems';
-import { sharedCalendarService, SharedCalendarSummary } from '../../services/sharedCalendarService';
+import { sharedCalendarService, SharedCalendarSummary, CALENDARS_CHANGED } from '../../services/sharedCalendarService';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -14,7 +14,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     // Hide the section entirely if the backend doesn't support shared calendars yet.
-    sharedCalendarService.list().then(setCalendars).catch(() => setCalendars(null));
+    const load = () => sharedCalendarService.list().then(setCalendars).catch(() => setCalendars(null));
+    load();
+    window.addEventListener(CALENDARS_CHANGED, load);
+    return () => window.removeEventListener(CALENDARS_CHANGED, load);
   }, []);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>

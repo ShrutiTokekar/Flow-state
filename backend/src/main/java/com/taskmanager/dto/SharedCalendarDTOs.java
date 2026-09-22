@@ -13,9 +13,15 @@ public final class SharedCalendarDTOs {
     public record CalendarSummary(Long id, String name, String color, CalendarMember.Role role,
                                   String ownerName, long memberCount) {}
 
-    /** shareToken is only included for the owner. */
+    /** shareToken and pendingInvites are only included for the owner. */
     public record CalendarDetail(Long id, String name, String color, CalendarMember.Role role,
-                                 String ownerName, String shareToken, List<Member> members) {}
+                                 String ownerName, String shareToken, List<Member> members,
+                                 List<PendingInvite> pendingInvites) {}
+
+    public record PendingInvite(Long id, String email, LocalDateTime invitedAt) {}
+
+    /** Result of inviting people by email. */
+    public record InviteResult(List<String> invited, List<String> alreadyMembers, List<String> invalid) {}
 
     public record Member(Long userId, String name, String email, CalendarMember.Role role,
                          LocalDateTime joinedAt) {}

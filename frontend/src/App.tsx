@@ -13,6 +13,7 @@ import Calendar from "./pages/CalendarPage";
 import { Trackers } from "./pages/Trackers";
 import { Landing } from "./pages/Landing";
 import { JoinCalendar } from "./pages/JoinCalendar";
+import { VerifyEmail } from "./pages/VerifyEmail";
 
 // Create a query client for React Query
 const queryClient = new QueryClient({
@@ -92,6 +93,9 @@ function App() {
 
           {/* Invite links — public so logged-out visitors see what they're joining */}
           <Route path="/join/:token" element={<JoinCalendar />} />
+
+          {/* Link from the confirmation email — works whether or not you're logged in */}
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
           <Route
             path="/trackers"

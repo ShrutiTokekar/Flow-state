@@ -197,6 +197,7 @@ export const Dashboard: React.FC = () => {
       setTasks(prev => prev.map(t => t.id === selectedTask.id ? updatedTask : t));
       setIsModalOpen(false);
       setSelectedTask(null);
+      await attachPendingReminder(selectedTask.id);
     } catch (err) {
       console.error('Failed to update task:', err);
       setError('Could not save the task. Please try again.');
