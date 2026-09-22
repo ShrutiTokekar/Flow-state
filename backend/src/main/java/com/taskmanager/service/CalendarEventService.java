@@ -28,7 +28,7 @@ public class CalendarEventService {
      * Get all events for a user
      */
     public List<CalendarEvent> getEventsForUser(User user) {
-        return calendarEventRepository.findByUserOrderByStartTimeAsc(user);
+        return calendarEventRepository.findByUserAndCalendarIsNullOrderByStartTimeAsc(user);
     }
     
     /**
@@ -66,8 +66,8 @@ public class CalendarEventService {
         CalendarEvent existing = calendarEventRepository.findById(eventId)
                 .orElseThrow(() -> new RuntimeException("Calendar event not found with id: " + eventId));
         
-        // Verify ownership
-        if (!existing.getUser().getId().equals(user.getId())) {
+        // Verify ownership (shared-calendar events go through SharedCalendarService)
+        if (!existing.getUser().getId().equals(user.getId()) || existing.getCalendar() != null) {
             throw new RuntimeException("Unauthorized access to calendar event");
         }
         
@@ -107,8 +107,8 @@ public class CalendarEventService {
         CalendarEvent event = calendarEventRepository.findById(eventId)
                 .orElseThrow(() -> new RuntimeException("Calendar event not found with id: " + eventId));
         
-        // Verify ownership
-        if (!event.getUser().getId().equals(user.getId())) {
+        // Verify ownership (shared-calendar events go through SharedCalendarService)
+        if (!event.getUser().getId().equals(user.getId()) || event.getCalendar() != null) {
             throw new RuntimeException("Unauthorized access to calendar event");
         }
         

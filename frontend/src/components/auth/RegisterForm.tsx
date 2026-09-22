@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { takePostLoginRedirect } from '../../utils/postLoginRedirect';
 import { useAuthStore } from '../../store/authStore';
 import { UserPlus, AlertCircle } from 'lucide-react';
 
@@ -44,7 +45,7 @@ export const RegisterForm: React.FC = () => {
         email: formData.email,
         password: formData.password,
       });
-      navigate('/dashboard');
+      navigate(takePostLoginRedirect(), { replace: true });
     } catch (error) {
       // Error is handled by the store
     }
