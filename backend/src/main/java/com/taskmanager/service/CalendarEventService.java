@@ -6,13 +6,16 @@ import com.taskmanager.repository.CalendarEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Transactional(readOnly = true) // open-in-view is off; reads (incl. lazy fields) happen here
 public class CalendarEventService {
     
     private static final Logger log = LoggerFactory.getLogger(CalendarEventService.class);
@@ -63,12 +66,12 @@ public class CalendarEventService {
      */
     @Transactional
     public CalendarEvent updateEvent(User user, Long eventId, CalendarEvent updatedEvent) {
-        CalendarEvent existing = calendarEventRepository.findById(eventId)
-                .orElseThrow(() -> new RuntimeException("Calendar event not found with id: " + eventId));
+        CalendarEvent existing = calendarEventRepository.findWithUserById(eventId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
         
         // Verify ownership (shared-calendar events go through SharedCalendarService)
         if (!existing.getUser().getId().equals(user.getId()) || existing.getCalendar() != null) {
-            throw new RuntimeException("Unauthorized access to calendar event");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found");
         }
         
         // Update fields
@@ -104,12 +107,12 @@ public class CalendarEventService {
      */
     @Transactional
     public void deleteEvent(User user, Long eventId) {
-        CalendarEvent event = calendarEventRepository.findById(eventId)
-                .orElseThrow(() -> new RuntimeException("Calendar event not found with id: " + eventId));
+        CalendarEvent event = calendarEventRepository.findWithUserById(eventId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
         
         // Verify ownership (shared-calendar events go through SharedCalendarService)
         if (!event.getUser().getId().equals(user.getId()) || event.getCalendar() != null) {
-            throw new RuntimeException("Unauthorized access to calendar event");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found");
         }
         
         calendarEventRepository.delete(event);

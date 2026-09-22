@@ -22,7 +22,6 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/tasks")
-@CrossOrigin(origins = "${cors.allowed.origins}")
 public class TaskController {
 
     private final TaskService taskService;

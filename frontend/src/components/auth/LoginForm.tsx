@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { LogIn, AlertCircle } from 'lucide-react';
 import { takePostLoginRedirect } from '../../utils/postLoginRedirect';
@@ -8,6 +8,12 @@ import { isNativeApp } from '../../utils/platform';
 export const LoginForm: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading, error, clearError } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  const googleError = searchParams.get('error') === 'google_email'
+    ? 'Your Google account email isn’t verified with Google. Verify it, or sign in with email and password.'
+    : searchParams.get('error')
+      ? 'Google sign-in didn’t finish. Please try again.'
+      : '';
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -81,10 +87,10 @@ export const LoginForm: React.FC = () => {
             </>)}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
+              {(error || googleError) && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-800 font-sans">{error}</p>
+                  <p className="text-sm text-red-800 font-sans">{error || googleError}</p>
                 </div>
               )}
 

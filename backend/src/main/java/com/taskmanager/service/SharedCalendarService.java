@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 @Service
+@Transactional(readOnly = true) // open-in-view is off; reads (incl. lazy fields) happen here
 public class SharedCalendarService {
 
     private static final Logger log = LoggerFactory.getLogger(SharedCalendarService.class);
@@ -364,7 +365,7 @@ public class SharedCalendarService {
     }
 
     private CalendarEvent requireEventInCalendar(CalendarMember me, Long eventId) {
-        CalendarEvent event = eventRepository.findById(eventId)
+        CalendarEvent event = eventRepository.findWithUserById(eventId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
         if (event.getCalendar() == null || !event.getCalendar().getId().equals(me.getCalendar().getId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found");
