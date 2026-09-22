@@ -1,17 +1,7 @@
 import React from 'react';
-import { Calendar, Clock, Edit2, Trash2 } from 'lucide-react';
-
-interface Task {
-  id: number;
-  title: string;
-  description?: string;
-  status: string;
-  priority: string;
-  dueDate?: string;
-  category?: any;
-  createdAt?: string;
-  updatedAt?: string;
-}
+import { Calendar, Check, Pencil, Play, Trash2 } from 'lucide-react';
+import { dueLabel, DueTone } from '../../utils/dueDate';
+import { getCategoryIcon } from '../../utils/categoryIcons';
 
 interface TaskCardProps {
   task: any;
@@ -20,123 +10,116 @@ interface TaskCardProps {
   onStatusChange: (taskId: number, status: string) => void;
 }
 
-const priorityConfig: Record<string, { label: string; className: string }> = {
-  LOW:    { label: 'LOW',    className: 'bg-green-100 text-green-700' },
-  MEDIUM: { label: 'MEDIUM', className: 'bg-yellow-100 text-yellow-700' },
-  HIGH:   { label: 'HIGH',   className: 'bg-orange-100 text-orange-700' },
-  URGENT: { label: 'URGENT', className: 'bg-red-100 text-red-700' },
+const priorityConfig: Record<string, { label: string; dot: string; chip: string }> = {
+  LOW:    { label: 'Low',    dot: 'bg-gray-300',   chip: 'text-gray-500' },
+  MEDIUM: { label: 'Medium', dot: 'bg-yellow-400', chip: 'text-gray-600' },
+  HIGH:   { label: 'High',   dot: 'bg-orange-500', chip: 'text-orange-700 bg-orange-50' },
+  URGENT: { label: 'Urgent', dot: 'bg-red-500',    chip: 'text-red-700 bg-red-50' },
+};
+
+const dueToneClass: Record<DueTone, string> = {
+  overdue: 'text-red-700 bg-red-50',
+  today: 'text-flow-purple bg-flow-lavender/60',
+  soon: 'text-gray-700 bg-gray-100',
+  later: 'text-gray-500 bg-gray-50',
+  done: 'text-gray-400',
 };
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onDelete, onStatusChange }) => {
   const priority = priorityConfig[task.priority] || priorityConfig.MEDIUM;
-
-  const formatDate = (dateStr: string) => {
-    const date = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T00:00:00');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const due = new Date(date);
-    due.setHours(0, 0, 0, 0);
-    const isOverdue = due < today && task.status !== 'DONE';
-    const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    return { formatted, isOverdue };
-  };
-
-  const { formatted: dueDateStr, isOverdue } = task.dueDate ? formatDate(task.dueDate) : { formatted: '', isOverdue: false };
-
   const isDone = task.status === 'DONE';
-  const isInProgress = task.status === 'IN_PROGRESS';
   const isTodo = task.status === 'TODO';
+  const due = task.dueDate ? dueLabel(task.dueDate, isDone) : null;
+  // The API sends category fields flat (categoryName/Color/Icon), not as a nested object.
+  const CategoryIcon = getCategoryIcon(task.categoryIcon);
 
   return (
-    <div className={`bg-white rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all ${isDone ? 'opacity-75' : ''} ${isOverdue ? 'border-red-200' : 'border-gray-100'}`}>
-      {/* Title row */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 className={`font-bold text-gray-900 font-heading text-sm leading-snug ${isDone ? 'line-through text-gray-400' : ''}`}>
-          {task.title}
-        </h4>
-        <div className="flex items-center gap-1 shrink-0">
+    <div
+      className={`group relative bg-white rounded-xl border p-3 sm:p-3.5 shadow-sm hover:shadow-md transition-shadow ${
+        due?.tone === 'overdue' ? 'border-red-200' : 'border-gray-200'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Complete / reopen */}
+        <button
+          onClick={() => onStatusChange(task.id, isDone ? 'TODO' : 'DONE')}
+          aria-label={isDone ? `Reopen “${task.title}”` : `Mark “${task.title}” done`}
+          aria-pressed={isDone}
+          className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+            isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
+          }`}
+        >
+          {isDone && <Check className="h-3 w-3" strokeWidth={3} />}
+        </button>
+
+        <div className="flex-1 min-w-0">
           <button
-            onClick={e => { e.stopPropagation(); onEdit(task); }}
-            className="p-1.5 text-gray-400 hover:text-flow-purple hover:bg-flow-lavender rounded-lg transition-all"
+            onClick={() => onEdit(task)}
+            className={`block text-left w-full font-sans font-semibold text-sm leading-snug break-words ${
+              isDone ? 'line-through text-gray-400' : 'text-gray-900 hover:text-flow-purple'
+            }`}
           >
-            <Edit2 className="h-3.5 w-3.5" />
+            {task.title}
+          </button>
+
+          {task.description && !isDone && (
+            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{task.description}</p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {due && (
+              <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md ${dueToneClass[due.tone]}`}>
+                <Calendar className="h-3 w-3" aria-hidden />
+                {due.label}
+              </span>
+            )}
+            {!isDone && (
+              <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md ${priority.chip}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${priority.dot}`} aria-hidden />
+                {priority.label}
+              </span>
+            )}
+            {task.categoryName && (
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md"
+                style={{ backgroundColor: `${task.categoryColor || '#8894d1'}1f`, color: task.categoryColor || '#8894d1' }}
+              >
+                <CategoryIcon className="h-3 w-3" aria-hidden />
+                {task.categoryName}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions: always visible on touch screens, on hover/focus with a mouse */}
+        <div className="flex items-center gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
+          {isTodo && (
+            <button
+              onClick={() => onStatusChange(task.id, 'IN_PROGRESS')}
+              aria-label={`Start “${task.title}”`}
+              title="Start"
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+            >
+              <Play className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            onClick={() => onEdit(task)}
+            aria-label={`Edit “${task.title}”`}
+            title="Edit"
+            className="p-1.5 text-gray-400 hover:text-flow-purple hover:bg-flow-lavender/60 rounded-lg"
+          >
+            <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={e => { e.stopPropagation(); onDelete(task.id); }}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+            onClick={() => onDelete(task.id)}
+            aria-label={`Delete “${task.title}”`}
+            title="Delete"
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
-      </div>
-
-      {/* Description */}
-      {task.description && (
-        <p className="text-xs text-gray-500 mb-2 line-clamp-2">{task.description}</p>
-      )}
-
-      {/* Badges */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-3">
-        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${priority.className}`}>
-          {priority.label}
-        </span>
-        {task.category && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-flow-lavender text-gray-700 font-medium">
-            {task.category.icon} {task.category.name}
-          </span>
-        )}
-      </div>
-
-      {/* Due date */}
-      {task.dueDate && (
-        <div className={`flex items-center gap-1 text-xs mb-3 ${isOverdue ? 'text-red-500' : 'text-gray-500'}`}>
-          <Calendar className="h-3 w-3" />
-          <span>{dueDateStr}{isOverdue ? ' (Overdue)' : ''}</span>
-        </div>
-      )}
-
-      {/* Completed time */}
-      {isDone && task.updatedAt && (
-        <div className="flex items-center gap-1 text-xs text-green-600 mb-3">
-          <Clock className="h-3 w-3" />
-          <span>Done {new Date(task.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-        </div>
-      )}
-
-      {/* Action buttons */}
-      <div className="flex gap-2">
-        {isTodo && (
-          <>
-            <button
-              onClick={e => { e.stopPropagation(); onStatusChange(task.id, 'IN_PROGRESS'); }}
-              className="flex-1 text-xs py-1.5 px-2 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 font-medium transition-all"
-            >
-              ▶ Start
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); onStatusChange(task.id, 'DONE'); }}
-              className="flex-1 text-xs py-1.5 px-2 rounded-xl border border-green-200 text-green-600 hover:bg-green-50 font-medium transition-all"
-            >
-              ✓ Complete
-            </button>
-          </>
-        )}
-        {isInProgress && (
-          <button
-            onClick={e => { e.stopPropagation(); onStatusChange(task.id, 'DONE'); }}
-            className="w-full text-xs py-1.5 px-2 rounded-xl border border-green-200 text-green-600 hover:bg-green-50 font-medium transition-all"
-          >
-            ✓ Mark Complete
-          </button>
-        )}
-        {isDone && (
-          <button
-            onClick={e => { e.stopPropagation(); onStatusChange(task.id, 'TODO'); }}
-            className="w-full text-xs py-1.5 px-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 font-medium transition-all"
-          >
-            ↩ Reopen
-          </button>
-        )}
       </div>
     </div>
   );
