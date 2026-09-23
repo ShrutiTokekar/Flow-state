@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional(readOnly = true) // open-in-view is off; reads (incl. lazy fields) happen here
 public class CategoryService {
     
     private final CategoryRepository categoryRepository;

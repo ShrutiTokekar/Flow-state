@@ -11,8 +11,11 @@ import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
+    // The controller reads the linked task's title after the transaction, so fetch it with the list
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "task")
     List<Notification> findByUserOrderByCreatedAtDesc(User user);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "task")
     List<Notification> findByUserAndIsReadFalseOrderByCreatedAtDesc(User user);
 
     Long countByUserAndIsReadFalse(User user);
@@ -22,5 +25,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     boolean existsByDedupKey(String dedupKey);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "task")
     java.util.Optional<Notification> findByIdAndUser(Long id, User user);
 }

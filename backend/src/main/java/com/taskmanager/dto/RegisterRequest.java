@@ -7,14 +7,17 @@ import jakarta.validation.constraints.Size;
 public class RegisterRequest {
     
     @NotBlank(message = "Name is required")
+    @Size(max = 100, message = "Name must be 100 characters or fewer")
     private String name;
     
     @NotBlank(message = "Email is required")
     @Email(message = "Email should be valid")
+    @Size(max = 254, message = "Email is too long")
     private String email;
     
     @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    // bcrypt only uses the first 72 bytes, so longer passwords would be silently truncated
+    @Size(min = 8, max = 72, message = "Password must be 8 to 72 characters")
     private String password;
 
     public RegisterRequest() {

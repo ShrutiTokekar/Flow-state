@@ -37,7 +37,15 @@ public class EmailService {
     @Value("${frontend.url:https://flowstatemanage.com}")
     private String frontendUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    // Timeouts so a slow or unreachable email provider can't tie up the email threads
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate() {
+        var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5_000);
+        factory.setReadTimeout(10_000);
+        return new RestTemplate(factory);
+    }
 
     /** Absolute link into the web app, e.g. appUrl("/calendar"). */
     public String appUrl(String path) {

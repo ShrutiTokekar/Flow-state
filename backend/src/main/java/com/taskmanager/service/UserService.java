@@ -7,9 +7,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
+@Transactional(readOnly = true) // open-in-view is off; reads (incl. lazy fields) happen here
 public class UserService {
     
     private final UserRepository userRepository;
@@ -35,11 +38,18 @@ public class UserService {
     public UserDTO updateProfile(Long userId, UserDTO userDTO) {
         User user = findById(userId);
         
-        if (userDTO.getName() != null && !userDTO.getName().isEmpty()) {
-            user.setName(userDTO.getName());
+        if (userDTO.getName() != null && !userDTO.getName().isBlank()) {
+            if (userDTO.getName().length() > 100) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name must be 100 characters or fewer");
+            }
+            user.setName(userDTO.getName().trim());
         }
         if (userDTO.getAvatarUrl() != null) {
-            user.setAvatarUrl(userDTO.getAvatarUrl());
+            String url = userDTO.getAvatarUrl().trim();
+            if (!url.isEmpty() && (url.length() > 500 || !url.startsWith("https://"))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Avatar must be an https:// link");
+            }
+            user.setAvatarUrl(url.isEmpty() ? null : url);
         }
         if (userDTO.getEmailNotifications() != null) {
             user.setEmailNotifications(userDTO.getEmailNotifications());
@@ -49,11 +59,31 @@ public class UserService {
         return convertToDTO(savedUser);
     }
     
+    /**
+     * Changes the password. The current password is required (unless the account only signs in
+     * with Google and has none yet). All other devices are signed out.
+     */
     @Transactional
-    public void updatePassword(Long userId, String newPassword) {
+    public User changePassword(Long userId, String currentPassword, String newPassword) {
         User user = findById(userId);
+        boolean hasPassword = user.getPassword() != null && !user.getPassword().isEmpty();
+        if (hasPassword && (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Your current password is incorrect");
+        }
+        if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 72) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be 8 to 72 characters");
+        }
         user.setPassword(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
+        user.bumpTokenVersion();
+        return userRepository.save(user);
+    }
+
+    /** Invalidates every login token for this account. */
+    @Transactional
+    public User signOutEverywhere(Long userId) {
+        User user = findById(userId);
+        user.bumpTokenVersion();
+        return userRepository.save(user);
     }
     
     // CHANGED TO PUBLIC

@@ -3,6 +3,7 @@ package com.taskmanager.repository;
 import com.taskmanager.model.CalendarEvent;
 import com.taskmanager.model.SharedCalendar;
 import com.taskmanager.model.User;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -18,9 +19,15 @@ import java.util.Optional;
 public interface CalendarEventRepository extends JpaRepository<CalendarEvent, Long> {
 
     // Personal events only — events a user created on shared calendars are excluded.
+    // Events are serialized after the transaction ends (createdByName reads the user), so load it up front
+    @EntityGraph(attributePaths = "user")
     List<CalendarEvent> findByUserAndCalendarIsNullOrderByStartTimeAsc(User user);
 
+    @EntityGraph(attributePaths = "user")
     List<CalendarEvent> findByCalendarOrderByStartTimeAsc(SharedCalendar calendar);
+
+    @EntityGraph(attributePaths = "user")
+    Optional<CalendarEvent> findWithUserById(Long id);
 
     @Query("select e from CalendarEvent e where e.user in :users and e.calendar is null " +
            "and e.startTime < :end and e.endTime > :start")

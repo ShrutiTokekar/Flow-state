@@ -14,7 +14,6 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -52,14 +51,16 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         String email = (String) attributes.get("email");
         String name = (String) attributes.get("name");
         
-        if (email == null) {
-            response.sendRedirect(frontendUrl + "/login?error=no_email");
+        // Only trust addresses Google has verified; otherwise someone could sign in as an
+        // existing Flow State user by putting their email on an unverified Google account.
+        if (email == null || !"true".equals(String.valueOf(attributes.get("email_verified")))) {
+            response.sendRedirect(trimmed(frontendUrl) + "/login?error=google_email");
             return;
         }
         
         // Find or create user. All app emails go to this Google address.
         boolean[] isNew = {false};
-        User user = userRepository.findByEmail(email).orElseGet(() -> {
+        User user = userRepository.findByEmail(email).or(() -> userRepository.findByEmailIgnoreCase(email)).orElseGet(() -> {
             isNew[0] = true;
             User newUser = new User();
             newUser.setEmail(email);
@@ -81,17 +82,24 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
             user = userRepository.save(user);
         }
 
-        // Generate JWT token
-        String token = jwtTokenProvider.generateToken(email);
-        
-        // Build redirect URL with token and user info
-        String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/auth/callback")
-                .queryParam("token", token)
-                .queryParam("email", URLEncoder.encode(email, StandardCharsets.UTF_8))
-                .queryParam("name", URLEncoder.encode(user.getName(), StandardCharsets.UTF_8))
-                .build()
-                .toUriString();
-        
-        response.sendRedirect(redirectUrl);
+        String token = jwtTokenProvider.generateToken(user.getEmail(), user.currentTokenVersion());
+
+        // The server-side session was only needed for the Google handshake; the app uses the token.
+        var session = request.getSession(false);
+        if (session != null) session.invalidate();
+
+        // Hand the token to the app in the URL *fragment* (#...), which browsers never send to
+        // servers, so it doesn't end up in server logs or Referer headers. The app removes it
+        // from the address bar right away.
+        String fragment = "token=" + enc(token) + "&email=" + enc(user.getEmail()) + "&name=" + enc(user.getName());
+        response.sendRedirect(trimmed(frontendUrl) + "/auth/callback#" + fragment);
+    }
+
+    private static String enc(String s) {
+        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+    }
+
+    private static String trimmed(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }

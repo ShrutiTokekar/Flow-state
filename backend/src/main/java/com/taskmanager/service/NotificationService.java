@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
+@Transactional(readOnly = true) // open-in-view is off; reads (incl. lazy fields) happen here
 public class NotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);

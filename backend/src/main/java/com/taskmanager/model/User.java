@@ -46,6 +46,11 @@ public class User {
 
     @Column(name = "verification_sent_at")
     private LocalDateTime verificationSentAt;
+
+    // Included in every login token. Increasing it signs the user out everywhere
+    // (used on password change and "log out of all devices").
+    @Column(name = "token_version")
+    private Integer tokenVersion;
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -149,6 +154,14 @@ public class User {
 
     public void setVerificationSentAt(LocalDateTime verificationSentAt) {
         this.verificationSentAt = verificationSentAt;
+    }
+
+    public int currentTokenVersion() {
+        return tokenVersion != null ? tokenVersion : 0;
+    }
+
+    public void bumpTokenVersion() {
+        tokenVersion = currentTokenVersion() + 1;
     }
 
     public LocalDateTime getCreatedAt() {

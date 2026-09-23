@@ -218,19 +218,21 @@ cd backend && mvn test
 
 ## Environment Variables
 
-`backend/src/main/resources/application.properties` is git-ignored, so in production every setting comes from environment variables.
+`backend/src/main/resources/application.properties` is git-ignored, so in production every setting comes from environment variables. Non-secret hardening defaults (connection pool, timeouts, limits) ship in `application.yml`.
 
 **Backend**
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection |
-| `JWT_SECRET` | Signs login tokens |
+| `JWT_SECRET` | Signs login tokens. **Required**, random, at least 32 characters (the server won't start otherwise). Changing it signs everyone out |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_REDIRECT_URI` | Google sign-in |
 | `FRONTEND_URL` | Web app URL, used for links in emails and after Google sign-in |
 | `CORS_ALLOWED_ORIGINS` | Allowed origins, comma-separated; include `capacitor://localhost` for the iOS app |
 | `RESEND_API_KEY` | Resend API key for sending email |
 | `MAIL_FROM` | Sender address on a domain verified in Resend, e.g. `notifications@flowstatemanage.com` |
 | `TZ` | Server time zone (e.g. `America/New_York`) so reminders go out at the right local time |
+| `DB_POOL_SIZE` | Max database connections (default 10); keep below your database's connection limit |
+| `SESSION_COOKIE_SECURE` | Leave unset in production; set `false` only for local http development |
 
 > Resend's test sender `onboarding@resend.dev` only delivers to your own Resend account. Verify your domain in Resend before sending to users.
 
@@ -239,6 +241,18 @@ cd backend && mvn test
 REACT_APP_API_URL=http://localhost:8080/api      # defaults to https://api.flowstatemanage.com/api
 REACT_APP_PUBLIC_URL=https://flowstatemanage.com # used for invite links inside the iOS app
 ```
+
+---
+
+## Security
+
+- **Authentication**: every `/api` endpoint requires a signed JWT except sign-up/login, email confirmation and invite previews; unknown paths are denied. Unauthenticated calls get `401` (no redirects, no server sessions)
+- **Tokens**: HS256 with a required ≥256-bit secret; each token carries a version, so changing your password or "Log out of all devices" revokes existing tokens. Google sign-in hands the token over in the URL fragment, which never reaches server logs
+- **Passwords**: bcrypt (cost 12), 8–72 characters, current password required to change it; login errors never reveal whether an account exists
+- **Brute force**: per-client rate limits (stricter for login, sign-up and anything that sends email) plus a 15-minute lock on an account after 10 wrong passwords
+- **Resource limits**: 256 KB request bodies, bounded database pool with short timeouts and query limits, Tomcat thread/connection caps and idle timeouts, bounded background email queue
+- **Headers**: strict CSP, HSTS, `X-Frame-Options: DENY`, `nosniff` on both the API and the website (`frontend/vercel.json`); CORS limited to `CORS_ALLOWED_ORIGINS`
+- **Data access**: every task, category, calendar, reminder and notification is checked against the signed-in user
 
 ---
 

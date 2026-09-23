@@ -1,0 +1,80 @@
+# Hardening defaults that ship with the code.
+#
+# application.properties is git-ignored (it holds local secrets), so without this file none of
+# these limits would reach production. Spring Boot loads both files; if a key appears in both,
+# application.properties wins. Secrets and URLs still come from environment variables.
+
+spring:
+  jpa:
+    # Don't hold a database connection open while the response is being written.
+    # With open-in-view on, every request keeps a connection for its whole duration,
+    # which exhausts a small pool quickly under load.
+    open-in-view: false
+    properties:
+      jakarta.persistence.query.timeout: 10000 # ms; no single query may run longer
+
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}  # keep below the database's connection limit
+      minimum-idle: 2
+      connection-timeout: 5000       # ms to wait for a free connection before failing fast
+      validation-timeout: 3000
+      idle-timeout: 300000           # close idle connections after 5 min
+      max-lifetime: 1500000          # recycle before typical 30 min proxy/DB cut-offs
+      leak-detection-threshold: 30000 # log any connection held longer than 30 s
+      data-source-properties:
+        connectTimeout: 10   # seconds (PostgreSQL driver)
+        socketTimeout: 30    # seconds; a hung database can't block a thread forever
+        tcpKeepAlive: true
+
+  task:
+    execution: # background work such as sending email (@Async)
+      pool:
+        core-size: 2
+        max-size: 4
+        queue-capacity: 500
+        keep-alive: 60s
+      shutdown:
+        await-termination: true
+        await-termination-period: 20s
+    scheduling: # reminders, deadline alerts, cleanups
+      pool:
+        size: 2
+
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  # Behind the host's load balancer: take the client IP from X-Forwarded-For only when the
+  # request came through a trusted internal proxy (so rate limits can't be dodged by faking it)
+  forward-headers-strategy: native
+  shutdown: graceful
+  max-http-request-header-size: 16KB
+
+  tomcat:
+    threads:
+      max: 100
+      min-spare: 10
+    accept-count: 100          # queued connections when all threads are busy
+    max-connections: 2000
+    connection-timeout: 10s    # slow or idle clients are dropped (slowloris protection)
+    keep-alive-timeout: 20s
+    max-keep-alive-requests: 100
+    max-swallow-size: 256KB
+    max-http-form-post-size: 256KB
+
+  error: # never leak internals in error responses
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
+    include-exception: false
+    whitelabel:
+      enabled: false
+
+  servlet:
+    session: # only used briefly during Google sign-in
+      timeout: 10m
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:true} # set false only for local http development
+        same-site: lax

@@ -1,18 +1,21 @@
 import React, { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { takePostLoginRedirect } from '../utils/postLoginRedirect';
 import { useAuthStore } from '../store/authStore';
 import { Loader2 } from 'lucide-react';
 
 export const OAuthCallback: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { setUser, setAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    const email = searchParams.get('email');
-    const name = searchParams.get('name');
+    // The backend puts the token in the URL fragment (#token=...), which is never sent to any
+    // server. Read it, then wipe it from the address bar and browser history right away.
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    window.history.replaceState(null, '', window.location.pathname);
+    const token = params.get('token');
+    const email = params.get('email');
+    const name = params.get('name');
 
     if (token && email && name) {
       // Store token and user data
@@ -38,7 +41,7 @@ export const OAuthCallback: React.FC = () => {
       // Failed to get token, redirect to login
       navigate('/login', { replace: true });
     }
-  }, [searchParams, navigate, setUser, setAuthenticated]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

@@ -2,14 +2,17 @@ package com.taskmanager.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class LoginRequest {
     
     @NotBlank(message = "Email is required")
     @Email(message = "Email should be valid")
+    @Size(max = 254)
     private String email;
     
     @NotBlank(message = "Password is required")
+    @Size(max = 200) // bounds the work done hashing an attacker-supplied value
     private String password;
 
     public LoginRequest() {

@@ -1,6 +1,7 @@
 package com.taskmanager.controller;
 
 import com.taskmanager.dto.UserDTO;
+import com.taskmanager.service.AuthService;
 import com.taskmanager.service.EmailVerificationService;
 import com.taskmanager.service.UserService;
 import jakarta.validation.Valid;
@@ -14,16 +15,18 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "*")
 public class UserController {
     
     private final UserService userService;
     private final EmailVerificationService emailVerificationService;
+    private final AuthService authService;
     
     @Autowired
-    public UserController(UserService userService, EmailVerificationService emailVerificationService) {
+    public UserController(UserService userService, EmailVerificationService emailVerificationService,
+                          AuthService authService) {
         this.userService = userService;
         this.emailVerificationService = emailVerificationService;
+        this.authService = authService;
     }
 
     @PostMapping("/me/resend-verification")
@@ -46,13 +49,24 @@ public class UserController {
         return ResponseEntity.ok(userService.updateProfile(userId, userDTO));
     }
     
+    /**
+     * Body: {"currentPassword": "...", "newPassword": "..."}. Signs out other devices and
+     * returns a fresh token for this one.
+     */
     @PutMapping("/me/password")
-    public ResponseEntity<Void> changePassword(
+    public ResponseEntity<Map<String, String>> changePassword(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody Map<String, String> passwordData
     ) {
         Long userId = userService.findByEmail(userDetails.getUsername()).getId();
-        userService.updatePassword(userId, passwordData.get("newPassword"));
+        var user = userService.changePassword(userId, passwordData.get("currentPassword"), passwordData.get("newPassword"));
+        return ResponseEntity.ok(Map.of("token", authService.issueToken(user)));
+    }
+
+    /** "Log out of all devices": every existing token stops working, including this one. */
+    @PostMapping("/me/logout-all")
+    public ResponseEntity<Void> logoutEverywhere(@AuthenticationPrincipal UserDetails userDetails) {
+        userService.signOutEverywhere(userService.findByEmail(userDetails.getUsername()).getId());
         return ResponseEntity.noContent().build();
     }
 }
